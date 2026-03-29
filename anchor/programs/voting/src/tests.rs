@@ -14,17 +14,62 @@ mod tests {
 
     const LAMPORTS_PER_SOL: u64 = 1_000_000_000;
 
-    fn get_poll_pda(poll_id: u64) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[b"poll".as_ref(), poll_id.to_le_bytes().as_ref()],
-            &PROGRAM_ID,
-        )
+    struct TestContext {
+        svm: LiteSVM,
+        user: Keypair,
     }
-    fn get_candidate_pda(poll_id: u64, candidate_name: &String) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[poll_id.to_le_bytes().as_ref(), candidate_name.as_bytes()],
-            &PROGRAM_ID,
-        )
+
+    impl TestContext {
+        fn new() -> Self {
+            let mut svm = LiteSVM::new();
+
+            let program_bytes = include_bytes!("../../../target/deploy/voting.so");
+            svm.add_program(PROGRAM_ID, program_bytes);
+
+            let user = Keypair::new();
+            svm.airdrop(&user.pubkey(), 10 * LAMPORTS_PER_SOL).unwrap();
+
+            Self { svm, user }
+        }
+
+        fn send_ix(&mut self, ix: Instruction) {
+            let tx = Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&self.user.pubkey()),
+                &[&self.user],
+                self.svm.latest_blockhash(),
+            );
+
+            let res = self.svm.send_transaction(tx);
+            assert!(res.is_ok());
+        }
+
+        fn get_account<T: AccountDeserialize>(&self, pubkey: &Pubkey) -> T {
+            let acc = self.svm.get_account(pubkey).unwrap();
+            let mut data: &[u8] = &acc.data;
+            T::try_deserialize(&mut data).unwrap()
+        }
+    }
+
+    fn get_poll_pda(poll_id: u64) -> (Pubkey, u8) {
+        Pubkey::find_program_address(&[b"poll", &poll_id.to_le_bytes()], &PROGRAM_ID)
+    }
+
+    fn get_candidate_pda(poll_id: u64, name: &str) -> (Pubkey, u8) {
+        Pubkey::find_program_address(&[&poll_id.to_le_bytes(), name.as_bytes()], &PROGRAM_ID)
+    }
+
+    fn get_discriminator(name: &str) -> [u8; 8] {
+        let preimage = format!("global:{}", name);
+        let hash = hash(preimage.as_bytes());
+        let mut disc = [0u8; 8];
+        disc.copy_from_slice(&hash.to_bytes()[..8]);
+        disc
+    }
+
+    fn write_string(data: &mut Vec<u8>, s: &str) {
+        data.extend_from_slice(&(s.len() as u32).to_le_bytes());
+        data.extend_from_slice(s.as_bytes());
     }
 
     fn create_poll_ix(
@@ -33,18 +78,16 @@ mod tests {
         poll_id: u64,
         poll_start: u64,
         poll_end: u64,
-        name: String,
-        description: String,
+        name: &str,
+        description: &str,
     ) -> Instruction {
-        let discriminator = get_discriminator("initialize_poll");
-        let mut data = discriminator.to_vec();
+        let mut data = get_discriminator("initialize_poll").to_vec();
+
         data.extend_from_slice(&poll_id.to_le_bytes());
         data.extend_from_slice(&poll_start.to_le_bytes());
         data.extend_from_slice(&poll_end.to_le_bytes());
-        data.extend_from_slice(&(name.len() as u32).to_le_bytes());
-        data.extend_from_slice(&name.as_bytes());
-        data.extend_from_slice(&(description.len() as u32).to_le_bytes());
-        data.extend_from_slice(&description.as_bytes());
+        write_string(&mut data, name);
+        write_string(&mut data, description);
 
         Instruction {
             program_id: PROGRAM_ID,
@@ -58,16 +101,16 @@ mod tests {
     }
 
     fn create_candidate_ix(
+        ix_name: &str,
         signer: &Pubkey,
         poll: &Pubkey,
         candidate: &Pubkey,
         poll_id: u64,
-        candidate_name: String,
+        name: &str,
     ) -> Instruction {
-        let discriminator = get_discriminator("initialize_candidate");
-        let mut data = discriminator.to_vec();
-        data.extend_from_slice(&(candidate_name.len() as u32).to_le_bytes());
-        data.extend_from_slice(&candidate_name.as_bytes());
+        let mut data = get_discriminator(ix_name).to_vec();
+
+        write_string(&mut data, name);
         data.extend_from_slice(&poll_id.to_le_bytes());
 
         Instruction {
@@ -82,17 +125,17 @@ mod tests {
         }
     }
 
-    fn create_vote_ix(
+    fn vote_ix(
+        ix_name: &str,
         signer: &Pubkey,
         poll: &Pubkey,
         candidate: &Pubkey,
         poll_id: u64,
-        candidate_name: String,
+        name: &str,
     ) -> Instruction {
-        let discriminator = get_discriminator("vote");
-        let mut data = discriminator.to_vec();
-        data.extend_from_slice(&(candidate_name.len() as u32).to_le_bytes());
-        data.extend_from_slice(&candidate_name.as_bytes());
+        let mut data = get_discriminator(ix_name).to_vec();
+
+        write_string(&mut data, name);
         data.extend_from_slice(&poll_id.to_le_bytes());
 
         Instruction {
@@ -105,325 +148,135 @@ mod tests {
             ],
             data,
         }
-    }
-
-    fn get_discriminator(name: &str) -> [u8; 8] {
-        let preimage = format!("global:{}", name);
-        let hash = hash(preimage.as_bytes());
-        let mut disc = [0u8; 8];
-        disc.copy_from_slice(&hash.to_bytes()[..8]);
-        disc
     }
 
     #[test]
     fn test_init_poll() {
-        let mut svm = LiteSVM::new();
-
-        // Load the program
-        let program_bytes = include_bytes!("../../../target/deploy/voting.so");
-        let _ = svm.add_program(PROGRAM_ID, program_bytes);
-
-        // Create a user with some SOL
-        let user = Keypair::new();
-        svm.airdrop(&user.pubkey(), 10 * LAMPORTS_PER_SOL).unwrap();
+        let mut ctx = TestContext::new();
 
         let poll_id = 0;
-        let (poll_pda, _bump) = get_poll_pda(0);
+        let (poll_pda, _) = get_poll_pda(poll_id);
 
-        let init_poll = &Poll {
+        let expected = Poll {
             poll_id,
-            name: "Test name".to_string(),
-            description: "Test desc".to_string(),
+            name: "Test name".into(),
+            description: "Test desc".into(),
             poll_start: 0,
             poll_end: 1,
             candidate_amount: 0,
         };
-        let init_poll_ix = create_poll_ix(
-            &user.pubkey(),
+
+        ctx.send_ix(create_poll_ix(
+            &ctx.user.pubkey(),
             &poll_pda,
             poll_id,
-            init_poll.poll_start,
-            init_poll.poll_end,
-            init_poll.name.clone(),
-            init_poll.description.clone(),
-        );
+            expected.poll_start,
+            expected.poll_end,
+            &expected.name,
+            &expected.description,
+        ));
 
-        let blockhash = svm.latest_blockhash();
-        let init_poll_tx = Transaction::new_signed_with_payer(
-            &[init_poll_ix],
-            Some(&user.pubkey()),
-            &[&user],
-            blockhash,
-        );
-
-        let result = svm.send_transaction(init_poll_tx);
-        assert!(result.is_ok(), "Init poll should succeed");
-        let account = svm.get_account(&poll_pda).unwrap();
-        let mut data: &[u8] = &account.data;
-
-        let poll = Poll::try_deserialize(&mut data).unwrap();
-
-        assert_eq!(*init_poll, poll);
+        let poll: Poll = ctx.get_account(&poll_pda);
+        assert_eq!(expected, poll);
     }
+
     #[test]
     fn test_init_candidate() {
-        let mut svm = LiteSVM::new();
-
-        // Load the program
-        let program_bytes = include_bytes!("../../../target/deploy/voting.so");
-        let _ = svm.add_program(PROGRAM_ID, program_bytes);
-
-        // Create a user with some SOL
-        let user = Keypair::new();
-        svm.airdrop(&user.pubkey(), 10 * LAMPORTS_PER_SOL).unwrap();
+        let mut ctx = TestContext::new();
 
         let poll_id = 0;
-        let (poll_pda, _bump) = get_poll_pda(0);
-        let candidate_name1 = "Test candidate 1";
-        let (candidate_pda1, _bump) = get_candidate_pda(0, &candidate_name1.to_string());
+        let (poll_pda, _) = get_poll_pda(poll_id);
 
-        let candidate_name2 = "Test candidate 2";
-        let (candidate_pda2, _bump) = get_candidate_pda(0, &candidate_name2.to_string());
-
-        let init_poll = &Poll {
-            poll_id,
-            name: "Test name".to_string(),
-            description: "Test desc".to_string(),
-            poll_start: 0,
-            poll_end: 1,
-            candidate_amount: 2,
-        };
-        let init_poll_ix = create_poll_ix(
-            &user.pubkey(),
+        ctx.send_ix(create_poll_ix(
+            &ctx.user.pubkey(),
             &poll_pda,
             poll_id,
-            init_poll.poll_start,
-            init_poll.poll_end,
-            init_poll.name.clone(),
-            init_poll.description.clone(),
-        );
+            0,
+            1,
+            "Test",
+            "Desc",
+        ));
 
-        let candidate1 = Candidate {
-            candidate_name: candidate_name1.to_string(),
-            candidate_votes: 0,
-        };
-        let candidate2 = Candidate {
-            candidate_name: candidate_name2.to_string(),
-            candidate_votes: 0,
-        };
+        let name1 = "Candidate 1";
+        let name2 = "Candidate 2";
 
-        let init_candidate1_ix = create_candidate_ix(
-            &user.pubkey(),
+        let (c1_pda, _) = get_candidate_pda(poll_id, name1);
+        let (c2_pda, _) = get_candidate_pda(poll_id, name2);
+
+        ctx.send_ix(create_candidate_ix(
+            "initialize_candidate",
+            &ctx.user.pubkey(),
             &poll_pda,
-            &candidate_pda1,
+            &c1_pda,
             poll_id,
-            candidate_name1.to_string(),
-        );
-        let init_candidate2_ix = create_candidate_ix(
-            &user.pubkey(),
+            name1,
+        ));
+
+        ctx.send_ix(create_candidate_ix(
+            "initialize_candidate",
+            &ctx.user.pubkey(),
             &poll_pda,
-            &candidate_pda2,
+            &c2_pda,
             poll_id,
-            candidate_name2.to_string(),
-        );
+            name2,
+        ));
 
-        let blockhash = svm.latest_blockhash();
-        let init_poll_tx = Transaction::new_signed_with_payer(
-            &[init_poll_ix],
-            Some(&user.pubkey()),
-            &[&user],
-            blockhash,
-        );
+        let c1: Candidate = ctx.get_account(&c1_pda);
+        let c2: Candidate = ctx.get_account(&c2_pda);
 
-        let init_candidate1_tx = Transaction::new_signed_with_payer(
-            &[init_candidate1_ix],
-            Some(&user.pubkey()),
-            &[&user],
-            blockhash,
-        );
-
-        let init_candidate2_tx = Transaction::new_signed_with_payer(
-            &[init_candidate2_ix],
-            Some(&user.pubkey()),
-            &[&user],
-            blockhash,
-        );
-
-        let result = svm.send_transaction(init_poll_tx);
-        assert!(result.is_ok(), "Init poll should succeed");
-
-        let result = svm.send_transaction(init_candidate1_tx);
-        assert!(result.is_ok(), "Init candidate 1 should succeed");
-
-        let result = svm.send_transaction(init_candidate2_tx);
-
-        assert!(result.is_ok(), "Init candidate 2 should succeed");
-
-        let account = svm.get_account(&poll_pda).unwrap();
-        let mut data: &[u8] = &account.data;
-
-        let poll = Poll::try_deserialize(&mut data).unwrap();
-        assert_eq!(*init_poll, poll);
-
-        let cand1_account = svm.get_account(&candidate_pda1).unwrap();
-        let mut data: &[u8] = &cand1_account.data;
-
-        let candidate = Candidate::try_deserialize(&mut data).unwrap();
-        assert_eq!(candidate1, candidate);
-
-        let cand2_account = svm.get_account(&candidate_pda2).unwrap();
-        let mut data: &[u8] = &cand2_account.data;
-
-        let candidate = Candidate::try_deserialize(&mut data).unwrap();
-        assert_eq!(candidate2, candidate);
+        assert_eq!(c1.candidate_votes, 0);
+        assert_eq!(c2.candidate_votes, 0);
     }
 
     #[test]
     fn test_vote() {
-        let mut svm = LiteSVM::new();
-
-        // Load the program
-        let program_bytes = include_bytes!("../../../target/deploy/voting.so");
-        let _ = svm.add_program(PROGRAM_ID, program_bytes);
-
-        // Create a user with some SOL
-        let user = Keypair::new();
-        svm.airdrop(&user.pubkey(), 10 * LAMPORTS_PER_SOL).unwrap();
+        let mut ctx = TestContext::new();
 
         let poll_id = 0;
-        let (poll_pda, _bump) = get_poll_pda(0);
-        let candidate_name1 = "Test candidate 1";
-        let (candidate_pda1, _bump) = get_candidate_pda(0, &candidate_name1.to_string());
+        let (poll_pda, _) = get_poll_pda(poll_id);
 
-        let candidate_name2 = "Test candidate 2";
-        let (candidate_pda2, _bump) = get_candidate_pda(0, &candidate_name2.to_string());
+        let name1 = "Candidate 1";
+        let name2 = "Candidate 2";
 
-        let init_poll = &Poll {
-            poll_id,
-            name: "Test name".to_string(),
-            description: "Test desc".to_string(),
-            poll_start: 0,
-            poll_end: 1,
-            candidate_amount: 2,
-        };
-        let init_poll_ix = create_poll_ix(
-            &user.pubkey(),
+        let (c1_pda, _) = get_candidate_pda(poll_id, name1);
+        let (c2_pda, _) = get_candidate_pda(poll_id, name2);
+
+        ctx.send_ix(create_poll_ix(
+            &ctx.user.pubkey(),
             &poll_pda,
             poll_id,
-            init_poll.poll_start,
-            init_poll.poll_end,
-            init_poll.name.clone(),
-            init_poll.description.clone(),
-        );
+            0,
+            1,
+            "Test",
+            "Desc",
+        ));
 
-        let candidate1 = Candidate {
-            candidate_name: candidate_name1.to_string(),
-            candidate_votes: 0,
-        };
-        let candidate2 = Candidate {
-            candidate_name: candidate_name2.to_string(),
-            candidate_votes: 0,
-        };
+        for name in [name1, name2] {
+            let (pda, _) = get_candidate_pda(poll_id, name);
 
-        let init_candidate1_ix = create_candidate_ix(
-            &user.pubkey(),
-            &poll_pda,
-            &candidate_pda1,
-            poll_id,
-            candidate_name1.to_string(),
-        );
-        let init_candidate2_ix = create_candidate_ix(
-            &user.pubkey(),
-            &poll_pda,
-            &candidate_pda2,
-            poll_id,
-            candidate_name2.to_string(),
-        );
+            ctx.send_ix(create_candidate_ix(
+                "initialize_candidate",
+                &ctx.user.pubkey(),
+                &poll_pda,
+                &pda,
+                poll_id,
+                name,
+            ));
 
-        let init_candidate1_vote_ix = create_vote_ix(
-            &user.pubkey(),
-            &poll_pda,
-            &candidate_pda1,
-            poll_id,
-            candidate_name1.to_string(),
-        );
+            ctx.send_ix(vote_ix(
+                "vote",
+                &ctx.user.pubkey(),
+                &poll_pda,
+                &pda,
+                poll_id,
+                name,
+            ));
+        }
 
-        let init_candidate2_vote_ix = create_vote_ix(
-            &user.pubkey(),
-            &poll_pda,
-            &candidate_pda2,
-            poll_id,
-            candidate_name2.to_string(),
-        );
+        let c1: Candidate = ctx.get_account(&c1_pda);
+        let c2: Candidate = ctx.get_account(&c2_pda);
 
-        let blockhash = svm.latest_blockhash();
-        let init_poll_tx = Transaction::new_signed_with_payer(
-            &[init_poll_ix],
-            Some(&user.pubkey()),
-            &[&user],
-            blockhash,
-        );
-
-        let init_candidate1_tx = Transaction::new_signed_with_payer(
-            &[init_candidate1_ix],
-            Some(&user.pubkey()),
-            &[&user],
-            blockhash,
-        );
-
-        let init_candidate2_tx = Transaction::new_signed_with_payer(
-            &[init_candidate2_ix],
-            Some(&user.pubkey()),
-            &[&user],
-            blockhash,
-        );
-
-        let init_candidate1_vote_tx = Transaction::new_signed_with_payer(
-            &[init_candidate1_vote_ix],
-            Some(&user.pubkey()),
-            &[&user],
-            blockhash,
-        );
-
-        let init_candidate2_vote_tx = Transaction::new_signed_with_payer(
-            &[init_candidate2_vote_ix],
-            Some(&user.pubkey()),
-            &[&user],
-            blockhash,
-        );
-
-        let result = svm.send_transaction(init_poll_tx);
-        assert!(result.is_ok(), "Init poll should succeed");
-
-        let result = svm.send_transaction(init_candidate1_tx);
-        assert!(result.is_ok(), "Init candidate 1 should succeed");
-
-        let result = svm.send_transaction(init_candidate2_tx);
-        assert!(result.is_ok(), "Init candidate 2 should succeed");
-
-        let result = svm.send_transaction(init_candidate1_vote_tx);
-        assert!(result.is_ok(), "Vote candidate 1 should succeed");
-
-        let result = svm.send_transaction(init_candidate2_vote_tx);
-        assert!(result.is_ok(), "Vote candidate 2 should succeed");
-
-        let account = svm.get_account(&poll_pda).unwrap();
-        let mut data: &[u8] = &account.data;
-
-        let poll = Poll::try_deserialize(&mut data).unwrap();
-
-        assert_eq!(*init_poll, poll);
-
-        let cand1_account = svm.get_account(&candidate_pda1).unwrap();
-        let mut data: &[u8] = &cand1_account.data;
-
-        let candidate = Candidate::try_deserialize(&mut data).unwrap();
-        assert_eq!(candidate1.candidate_votes + 1, candidate.candidate_votes);
-
-        let cand2_account = svm.get_account(&candidate_pda2).unwrap();
-        let mut data: &[u8] = &cand2_account.data;
-
-        let candidate = Candidate::try_deserialize(&mut data).unwrap();
-        assert_eq!(candidate2.candidate_votes + 1, candidate.candidate_votes);
+        assert_eq!(c1.candidate_votes, 1);
+        assert_eq!(c2.candidate_votes, 1);
     }
 }
