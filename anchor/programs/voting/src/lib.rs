@@ -116,7 +116,7 @@ pub struct Poll {
     pub candidate_amount: u64,
 }
 
-#[derive(Debug, InitSpace)]
+#[derive(Debug, InitSpace, PartialEq, Eq)]
 #[account]
 pub struct Candidate {
     #[max_len(32)]
