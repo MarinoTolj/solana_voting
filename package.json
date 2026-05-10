@@ -13,7 +13,7 @@
     "setup": "npm run anchor-build && npm run codama:js",
     "start": "next start"
   },
-  "description": "Next.js, Tailwind, @solana/kit, Anchor vault program",
+  "description": "Next.js, Tailwind, @solana/kit, Anchor voting program",
   "keywords": [
     "anchor",
     "kit",
@@ -30,6 +30,7 @@
     "@solana/kit-client-rpc": "^0.7.0",
     "@solana/kit-plugin-rpc": "^0.7.0",
     "@solana/wallet-standard-features": "^1.3.0",
+    "@solana/web3.js": "^1.98.4",
     "@wallet-standard/app": "^1.1.0",
     "@wallet-standard/base": "^1.1.0",
     "@wallet-standard/features": "^1.1.0",

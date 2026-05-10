@@ -7,6 +7,8 @@
  */
 
 import {
+  addDecoderSizePrefix,
+  addEncoderSizePrefix,
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
@@ -14,13 +16,19 @@ import {
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
+  getU32Decoder,
+  getU32Encoder,
+  getU64Decoder,
+  getU64Encoder,
+  getUtf8Decoder,
+  getUtf8Encoder,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
   type Address,
-  type FixedSizeCodec,
-  type FixedSizeDecoder,
-  type FixedSizeEncoder,
+  type Codec,
+  type Decoder,
+  type Encoder,
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
@@ -30,26 +38,28 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import { findVaultPda } from "../pdas";
-import { VAULT_PROGRAM_ADDRESS } from "../programs";
+import { findPollPda } from "../pdas";
+import { VOTING_PROGRAM_ADDRESS } from "../programs";
 import {
-  expectAddress,
+  expectSome,
   getAccountMetaFactory,
   type ResolvedAccount,
 } from "../shared";
 
-export const WITHDRAW_DISCRIMINATOR = new Uint8Array([
-  183, 18, 70, 156, 148, 109, 161, 34,
+export const INITIALIZE_POLL_DISCRIMINATOR = new Uint8Array([
+  193, 22, 99, 197, 18, 33, 115, 117,
 ]);
 
-export function getWithdrawDiscriminatorBytes() {
-  return fixEncoderSize(getBytesEncoder(), 8).encode(WITHDRAW_DISCRIMINATOR);
+export function getInitializePollDiscriminatorBytes() {
+  return fixEncoderSize(getBytesEncoder(), 8).encode(
+    INITIALIZE_POLL_DISCRIMINATOR,
+  );
 }
 
-export type WithdrawInstruction<
-  TProgram extends string = typeof VAULT_PROGRAM_ADDRESS,
+export type InitializePollInstruction<
+  TProgram extends string = typeof VOTING_PROGRAM_ADDRESS,
   TAccountSigner extends string | AccountMeta<string> = string,
-  TAccountVault extends string | AccountMeta<string> = string,
+  TAccountPoll extends string | AccountMeta<string> = string,
   TAccountSystemProgram extends string | AccountMeta<string> =
     "11111111111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
@@ -61,9 +71,9 @@ export type WithdrawInstruction<
         ? WritableSignerAccount<TAccountSigner> &
             AccountSignerMeta<TAccountSigner>
         : TAccountSigner,
-      TAccountVault extends string
-        ? WritableAccount<TAccountVault>
-        : TAccountVault,
+      TAccountPoll extends string
+        ? WritableAccount<TAccountPoll>
+        : TAccountPoll,
       TAccountSystemProgram extends string
         ? ReadonlyAccount<TAccountSystemProgram>
         : TAccountSystemProgram,
@@ -71,70 +81,100 @@ export type WithdrawInstruction<
     ]
   >;
 
-export type WithdrawInstructionData = { discriminator: ReadonlyUint8Array };
+export type InitializePollInstructionData = {
+  discriminator: ReadonlyUint8Array;
+  pollId: bigint;
+  pollStart: bigint;
+  pollEnd: bigint;
+  name: string;
+  description: string;
+};
 
-export type WithdrawInstructionDataArgs = {};
+export type InitializePollInstructionDataArgs = {
+  pollId: number | bigint;
+  pollStart: number | bigint;
+  pollEnd: number | bigint;
+  name: string;
+  description: string;
+};
 
-export function getWithdrawInstructionDataEncoder(): FixedSizeEncoder<WithdrawInstructionDataArgs> {
+export function getInitializePollInstructionDataEncoder(): Encoder<InitializePollInstructionDataArgs> {
   return transformEncoder(
-    getStructEncoder([["discriminator", fixEncoderSize(getBytesEncoder(), 8)]]),
-    (value) => ({ ...value, discriminator: WITHDRAW_DISCRIMINATOR }),
+    getStructEncoder([
+      ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
+      ["pollId", getU64Encoder()],
+      ["pollStart", getU64Encoder()],
+      ["pollEnd", getU64Encoder()],
+      ["name", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
+      ["description", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
+    ]),
+    (value) => ({ ...value, discriminator: INITIALIZE_POLL_DISCRIMINATOR }),
   );
 }
 
-export function getWithdrawInstructionDataDecoder(): FixedSizeDecoder<WithdrawInstructionData> {
+export function getInitializePollInstructionDataDecoder(): Decoder<InitializePollInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
+    ["pollId", getU64Decoder()],
+    ["pollStart", getU64Decoder()],
+    ["pollEnd", getU64Decoder()],
+    ["name", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
+    ["description", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
   ]);
 }
 
-export function getWithdrawInstructionDataCodec(): FixedSizeCodec<
-  WithdrawInstructionDataArgs,
-  WithdrawInstructionData
+export function getInitializePollInstructionDataCodec(): Codec<
+  InitializePollInstructionDataArgs,
+  InitializePollInstructionData
 > {
   return combineCodec(
-    getWithdrawInstructionDataEncoder(),
-    getWithdrawInstructionDataDecoder(),
+    getInitializePollInstructionDataEncoder(),
+    getInitializePollInstructionDataDecoder(),
   );
 }
 
-export type WithdrawAsyncInput<
+export type InitializePollAsyncInput<
   TAccountSigner extends string = string,
-  TAccountVault extends string = string,
+  TAccountPoll extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
   signer: TransactionSigner<TAccountSigner>;
-  vault?: Address<TAccountVault>;
+  poll?: Address<TAccountPoll>;
   systemProgram?: Address<TAccountSystemProgram>;
+  pollId: InitializePollInstructionDataArgs["pollId"];
+  pollStart: InitializePollInstructionDataArgs["pollStart"];
+  pollEnd: InitializePollInstructionDataArgs["pollEnd"];
+  name: InitializePollInstructionDataArgs["name"];
+  description: InitializePollInstructionDataArgs["description"];
 };
 
-export async function getWithdrawInstructionAsync<
+export async function getInitializePollInstructionAsync<
   TAccountSigner extends string,
-  TAccountVault extends string,
+  TAccountPoll extends string,
   TAccountSystemProgram extends string,
-  TProgramAddress extends Address = typeof VAULT_PROGRAM_ADDRESS,
+  TProgramAddress extends Address = typeof VOTING_PROGRAM_ADDRESS,
 >(
-  input: WithdrawAsyncInput<
+  input: InitializePollAsyncInput<
     TAccountSigner,
-    TAccountVault,
+    TAccountPoll,
     TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
-  WithdrawInstruction<
+  InitializePollInstruction<
     TProgramAddress,
     TAccountSigner,
-    TAccountVault,
+    TAccountPoll,
     TAccountSystemProgram
   >
 > {
   // Program address.
-  const programAddress = config?.programAddress ?? VAULT_PROGRAM_ADDRESS;
+  const programAddress = config?.programAddress ?? VOTING_PROGRAM_ADDRESS;
 
   // Original accounts.
   const originalAccounts = {
     signer: { value: input.signer ?? null, isWritable: true },
-    vault: { value: input.vault ?? null, isWritable: true },
+    poll: { value: input.poll ?? null, isWritable: true },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
@@ -142,71 +182,89 @@ export async function getWithdrawInstructionAsync<
     ResolvedAccount
   >;
 
+  // Original args.
+  const args = { ...input };
+
   // Resolve default values.
-  if (!accounts.vault.value) {
-    accounts.vault.value = await findVaultPda({
-      signer: expectAddress(accounts.signer.value),
+  if (!accounts.poll.value) {
+    accounts.poll.value = await findPollPda({
+      pollId: expectSome(args.pollId),
     });
   }
   if (!accounts.systemProgram.value) {
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
   }
+  console.log({accounts});
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
       getAccountMeta(accounts.signer),
-      getAccountMeta(accounts.vault),
+      getAccountMeta(accounts.poll),
       getAccountMeta(accounts.systemProgram),
     ],
-    data: getWithdrawInstructionDataEncoder().encode({}),
+    data: getInitializePollInstructionDataEncoder().encode(
+      args as InitializePollInstructionDataArgs,
+    ),
     programAddress,
-  } as WithdrawInstruction<
+  } as InitializePollInstruction<
     TProgramAddress,
     TAccountSigner,
-    TAccountVault,
+    TAccountPoll,
     TAccountSystemProgram
   >);
 }
 
-export type WithdrawInput<
+export type InitializePollInput<
   TAccountSigner extends string = string,
-  TAccountVault extends string = string,
+  TAccountPoll extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
   signer: TransactionSigner<TAccountSigner>;
-  vault: Address<TAccountVault>;
+  poll: Address<TAccountPoll>;
   systemProgram?: Address<TAccountSystemProgram>;
+  pollId: InitializePollInstructionDataArgs["pollId"];
+  pollStart: InitializePollInstructionDataArgs["pollStart"];
+  pollEnd: InitializePollInstructionDataArgs["pollEnd"];
+  name: InitializePollInstructionDataArgs["name"];
+  description: InitializePollInstructionDataArgs["description"];
 };
 
-export function getWithdrawInstruction<
+export function getInitializePollInstruction<
   TAccountSigner extends string,
-  TAccountVault extends string,
+  TAccountPoll extends string,
   TAccountSystemProgram extends string,
-  TProgramAddress extends Address = typeof VAULT_PROGRAM_ADDRESS,
+  TProgramAddress extends Address = typeof VOTING_PROGRAM_ADDRESS,
 >(
-  input: WithdrawInput<TAccountSigner, TAccountVault, TAccountSystemProgram>,
+  input: InitializePollInput<
+    TAccountSigner,
+    TAccountPoll,
+    TAccountSystemProgram
+  >,
   config?: { programAddress?: TProgramAddress },
-): WithdrawInstruction<
+): InitializePollInstruction<
   TProgramAddress,
   TAccountSigner,
-  TAccountVault,
+  TAccountPoll,
   TAccountSystemProgram
 > {
   // Program address.
-  const programAddress = config?.programAddress ?? VAULT_PROGRAM_ADDRESS;
+  const programAddress = config?.programAddress ?? VOTING_PROGRAM_ADDRESS;
 
   // Original accounts.
   const originalAccounts = {
     signer: { value: input.signer ?? null, isWritable: true },
-    vault: { value: input.vault ?? null, isWritable: true },
+    poll: { value: input.poll ?? null, isWritable: true },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedAccount
   >;
+
+  // Original args.
+  const args = { ...input };
 
   // Resolve default values.
   if (!accounts.systemProgram.value) {
@@ -218,40 +276,42 @@ export function getWithdrawInstruction<
   return Object.freeze({
     accounts: [
       getAccountMeta(accounts.signer),
-      getAccountMeta(accounts.vault),
+      getAccountMeta(accounts.poll),
       getAccountMeta(accounts.systemProgram),
     ],
-    data: getWithdrawInstructionDataEncoder().encode({}),
+    data: getInitializePollInstructionDataEncoder().encode(
+      args as InitializePollInstructionDataArgs,
+    ),
     programAddress,
-  } as WithdrawInstruction<
+  } as InitializePollInstruction<
     TProgramAddress,
     TAccountSigner,
-    TAccountVault,
+    TAccountPoll,
     TAccountSystemProgram
   >);
 }
 
-export type ParsedWithdrawInstruction<
-  TProgram extends string = typeof VAULT_PROGRAM_ADDRESS,
+export type ParsedInitializePollInstruction<
+  TProgram extends string = typeof VOTING_PROGRAM_ADDRESS,
   TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[],
 > = {
   programAddress: Address<TProgram>;
   accounts: {
     signer: TAccountMetas[0];
-    vault: TAccountMetas[1];
+    poll: TAccountMetas[1];
     systemProgram: TAccountMetas[2];
   };
-  data: WithdrawInstructionData;
+  data: InitializePollInstructionData;
 };
 
-export function parseWithdrawInstruction<
+export function parseInitializePollInstruction<
   TProgram extends string,
   TAccountMetas extends readonly AccountMeta[],
 >(
   instruction: Instruction<TProgram> &
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
-): ParsedWithdrawInstruction<TProgram, TAccountMetas> {
+): ParsedInitializePollInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 3) {
     // TODO: Coded error.
     throw new Error("Not enough accounts");
@@ -266,9 +326,9 @@ export function parseWithdrawInstruction<
     programAddress: instruction.programAddress,
     accounts: {
       signer: getNextAccount(),
-      vault: getNextAccount(),
+      poll: getNextAccount(),
       systemProgram: getNextAccount(),
     },
-    data: getWithdrawInstructionDataDecoder().decode(instruction.data),
+    data: getInitializePollInstructionDataDecoder().decode(instruction.data),
   };
 }

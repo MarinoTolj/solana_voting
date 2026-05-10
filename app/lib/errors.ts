@@ -3,15 +3,15 @@ import {
   SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM,
 } from "@solana/kit";
 import {
-  getVaultErrorMessage,
-  VAULT_ERROR__VAULT_ALREADY_EXISTS,
-  VAULT_ERROR__INVALID_AMOUNT,
-  type VaultError,
-} from "../generated/vault";
+  getvotingErrorMessage,
+  voting_ERROR__voting_ALREADY_EXISTS,
+  voting_ERROR__INVALID_AMOUNT,
+  type votingError,
+} from "../generated/voting";
 
-const VAULT_ERROR_CODES: Record<number, VaultError> = {
-  [VAULT_ERROR__VAULT_ALREADY_EXISTS]: VAULT_ERROR__VAULT_ALREADY_EXISTS,
-  [VAULT_ERROR__INVALID_AMOUNT]: VAULT_ERROR__INVALID_AMOUNT,
+const voting_ERROR_CODES: Record<number, votingError> = {
+  [voting_ERROR__voting_ALREADY_EXISTS]: voting_ERROR__voting_ALREADY_EXISTS,
+  [voting_ERROR__INVALID_AMOUNT]: voting_ERROR__INVALID_AMOUNT,
 };
 
 export function parseTransactionError(err: unknown): string {
@@ -25,9 +25,9 @@ export function parseTransactionError(err: unknown): string {
     isSolanaError(err, SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM) &&
     typeof err.context?.code === "number"
   ) {
-    const vaultError = VAULT_ERROR_CODES[err.context.code];
-    if (vaultError !== undefined) {
-      return getVaultErrorMessage(vaultError);
+    const votingError = voting_ERROR_CODES[err.context.code];
+    if (votingError !== undefined) {
+      return getvotingErrorMessage(votingError);
     }
   }
 

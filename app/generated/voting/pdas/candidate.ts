@@ -7,29 +7,30 @@
  */
 
 import {
-  getAddressEncoder,
-  getBytesEncoder,
   getProgramDerivedAddress,
+  getU64Encoder,
+  getUtf8Encoder,
   type Address,
   type ProgramDerivedAddress,
 } from "@solana/kit";
 
-export type VaultSeeds = {
-  signer: Address;
+export type CandidateSeeds = {
+  pollId: number | bigint;
+  candidateName: string;
 };
 
-export async function findVaultPda(
-  seeds: VaultSeeds,
+export async function findCandidatePda(
+  seeds: CandidateSeeds,
   config: { programAddress?: Address | undefined } = {},
 ): Promise<ProgramDerivedAddress> {
   const {
-    programAddress = "3yqfdvpBZJRTYq61x9aXxfjvNrEfd7G7yADnbhJcxK4i" as Address<"3yqfdvpBZJRTYq61x9aXxfjvNrEfd7G7yADnbhJcxK4i">,
+    programAddress = "EjwrYRuuUGazBKmhSAecnBPoDsb3U24Wrrom5fVZagis" as Address<"EjwrYRuuUGazBKmhSAecnBPoDsb3U24Wrrom5fVZagis">,
   } = config;
   return await getProgramDerivedAddress({
     programAddress,
     seeds: [
-      getBytesEncoder().encode(new Uint8Array([118, 97, 117, 108, 116])),
-      getAddressEncoder().encode(seeds.signer),
+      getU64Encoder().encode(seeds.pollId),
+      getUtf8Encoder().encode(seeds.candidateName),
     ],
   });
 }
