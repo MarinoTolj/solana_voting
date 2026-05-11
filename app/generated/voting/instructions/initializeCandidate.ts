@@ -87,24 +87,27 @@ export type InitializeCandidateInstruction<
 
 export type InitializeCandidateInstructionData = {
   discriminator: ReadonlyUint8Array;
-  candidateName: string;
+  candidateId: bigint;
   pollId: bigint;
+  candidateName: string;
 };
 
 export type InitializeCandidateInstructionDataArgs = {
-  candidateName: string;
+  candidateId: number | bigint;
   pollId: number | bigint;
+  candidateName: string;
 };
 
 export function getInitializeCandidateInstructionDataEncoder(): Encoder<InitializeCandidateInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
+      ["candidateId", getU64Encoder()],
+      ["pollId", getU64Encoder()],
       [
         "candidateName",
         addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder()),
       ],
-      ["pollId", getU64Encoder()],
     ]),
     (value) => ({
       ...value,
@@ -116,8 +119,9 @@ export function getInitializeCandidateInstructionDataEncoder(): Encoder<Initiali
 export function getInitializeCandidateInstructionDataDecoder(): Decoder<InitializeCandidateInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
-    ["candidateName", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
+    ["candidateId", getU64Decoder()],
     ["pollId", getU64Decoder()],
+    ["candidateName", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
   ]);
 }
 
@@ -141,8 +145,9 @@ export type InitializeCandidateAsyncInput<
   poll?: Address<TAccountPoll>;
   candidate?: Address<TAccountCandidate>;
   systemProgram?: Address<TAccountSystemProgram>;
-  candidateName: InitializeCandidateInstructionDataArgs["candidateName"];
+  candidateId: InitializeCandidateInstructionDataArgs["candidateId"];
   pollId: InitializeCandidateInstructionDataArgs["pollId"];
+  candidateName: InitializeCandidateInstructionDataArgs["candidateName"];
 };
 
 export async function getInitializeCandidateInstructionAsync<
@@ -195,7 +200,7 @@ export async function getInitializeCandidateInstructionAsync<
   if (!accounts.candidate.value) {
     accounts.candidate.value = await findCandidatePda({
       pollId: expectSome(args.pollId),
-      candidateName: expectSome(args.candidateName),
+      candidateId: expectSome(args.candidateId),
     });
   }
   if (!accounts.systemProgram.value) {
@@ -234,8 +239,9 @@ export type InitializeCandidateInput<
   poll: Address<TAccountPoll>;
   candidate: Address<TAccountCandidate>;
   systemProgram?: Address<TAccountSystemProgram>;
-  candidateName: InitializeCandidateInstructionDataArgs["candidateName"];
+  candidateId: InitializeCandidateInstructionDataArgs["candidateId"];
   pollId: InitializeCandidateInstructionDataArgs["pollId"];
+  candidateName: InitializeCandidateInstructionDataArgs["candidateName"];
 };
 
 export function getInitializeCandidateInstruction<

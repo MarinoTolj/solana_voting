@@ -7,16 +7,16 @@
  */
 
 import {
+  getBytesEncoder,
   getProgramDerivedAddress,
   getU64Encoder,
-  getUtf8Encoder,
   type Address,
   type ProgramDerivedAddress,
 } from "@solana/kit";
 
 export type CandidateSeeds = {
   pollId: number | bigint;
-  candidateName: string;
+  candidateId: number | bigint;
 };
 
 export async function findCandidatePda(
@@ -29,8 +29,11 @@ export async function findCandidatePda(
   return await getProgramDerivedAddress({
     programAddress,
     seeds: [
+      getBytesEncoder().encode(
+        new Uint8Array([99, 97, 110, 100, 105, 100, 97, 116, 101]),
+      ),
       getU64Encoder().encode(seeds.pollId),
-      getUtf8Encoder().encode(seeds.candidateName),
+      getU64Encoder().encode(seeds.candidateId),
     ],
   });
 }

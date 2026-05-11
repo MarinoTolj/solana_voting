@@ -24,11 +24,15 @@ const rpc = createSolanaRpc(
   "https://api.devnet.solana.com"
 );
 
-export function CandidateCard({ pollId, candidateName }: CandidateSeeds) {
+type Props = {
+  seeds:CandidateSeeds;
+};
+
+export function CandidateCard({ seeds }: Props) {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
   const wallet = useWallet();
-    const { send , isSending} = useSendTransaction();
+  const { send , isSending} = useSendTransaction();
 
   useEffect(() => {
     let mounted = true;
@@ -36,8 +40,8 @@ export function CandidateCard({ pollId, candidateName }: CandidateSeeds) {
     async function loadPoll() {
       try {
         const [candidatePda] = await findCandidatePda({
-          pollId,
-          candidateName
+          pollId:seeds.pollId,
+          candidateId:seeds.candidateId,
         });
 
         const account = await fetchCandidate(
@@ -62,7 +66,7 @@ export function CandidateCard({ pollId, candidateName }: CandidateSeeds) {
     return () => {
       mounted = false;
     };
-  }, [pollId]);
+  }, [seeds]);
 
   const handleVote = async ()=>{
     try {
@@ -77,8 +81,8 @@ export function CandidateCard({ pollId, candidateName }: CandidateSeeds) {
     
           const instruction = await getVoteInstructionAsync({
             signer: wallet.signer,
-            pollId,
-            candidateName
+            candidateId:seeds.candidateId,
+            pollId:seeds.pollId,
           });
           console.log({instruction});
           const signature = await send({ instructions: [instruction] });
@@ -98,13 +102,16 @@ export function CandidateCard({ pollId, candidateName }: CandidateSeeds) {
     return <div>Candidate not found</div>;
   }
 
+
   return (
     <div>
       <p>Name: {candidate.candidateName}</p>
       <p>Votes: {candidate.candidateVotes}</p>
+      
       <button onClick={handleVote}>
         Vote
       </button>
+      
     </div>
   );
 }

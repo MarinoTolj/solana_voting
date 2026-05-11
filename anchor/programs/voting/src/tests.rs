@@ -55,8 +55,15 @@ mod tests {
         Pubkey::find_program_address(&[b"poll", &poll_id.to_le_bytes()], &PROGRAM_ID)
     }
 
-    fn get_candidate_pda(poll_id: u64, name: &str) -> (Pubkey, u8) {
-        Pubkey::find_program_address(&[&poll_id.to_le_bytes(), name.as_bytes()], &PROGRAM_ID)
+    fn get_candidate_pda(poll_id: u64, candidate_id: u64) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                b"candidate",
+                poll_id.to_le_bytes().as_ref(),
+                candidate_id.to_le_bytes().as_ref(),
+            ],
+            &PROGRAM_ID,
+        )
     }
 
     fn get_discriminator(name: &str) -> [u8; 8] {
@@ -105,13 +112,15 @@ mod tests {
         signer: &Pubkey,
         poll: &Pubkey,
         candidate: &Pubkey,
+        candidate_id: u64,
         poll_id: u64,
         name: &str,
     ) -> Instruction {
         let mut data = get_discriminator(ix_name).to_vec();
 
-        write_string(&mut data, name);
+        data.extend_from_slice(&candidate_id.to_le_bytes());
         data.extend_from_slice(&poll_id.to_le_bytes());
+        write_string(&mut data, name);
 
         Instruction {
             program_id: PROGRAM_ID,
@@ -130,12 +139,12 @@ mod tests {
         signer: &Pubkey,
         poll: &Pubkey,
         candidate: &Pubkey,
+        candidate_id: u64,
         poll_id: u64,
-        name: &str,
     ) -> Instruction {
         let mut data = get_discriminator(ix_name).to_vec();
 
-        write_string(&mut data, name);
+        data.extend_from_slice(&candidate_id.to_le_bytes());
         data.extend_from_slice(&poll_id.to_le_bytes());
 
         Instruction {
@@ -198,16 +207,19 @@ mod tests {
         ));
 
         let name1 = "Candidate 1";
+        let id1 = 0;
         let name2 = "Candidate 2";
+        let id2 = 1;
 
-        let (c1_pda, _) = get_candidate_pda(poll_id, name1);
-        let (c2_pda, _) = get_candidate_pda(poll_id, name2);
+        let (c1_pda, _) = get_candidate_pda(poll_id, id1);
+        let (c2_pda, _) = get_candidate_pda(poll_id, id2);
 
         ctx.send_ix(create_candidate_ix(
             "initialize_candidate",
             &ctx.user.pubkey(),
             &poll_pda,
             &c1_pda,
+            id1,
             poll_id,
             name1,
         ));
@@ -217,6 +229,7 @@ mod tests {
             &ctx.user.pubkey(),
             &poll_pda,
             &c2_pda,
+            id2,
             poll_id,
             name2,
         ));
@@ -236,10 +249,12 @@ mod tests {
         let (poll_pda, _) = get_poll_pda(poll_id);
 
         let name1 = "Candidate 1";
+        let id1 = 0;
         let name2 = "Candidate 2";
+        let id2 = 1;
 
-        let (c1_pda, _) = get_candidate_pda(poll_id, name1);
-        let (c2_pda, _) = get_candidate_pda(poll_id, name2);
+        let (c1_pda, _) = get_candidate_pda(poll_id, id1);
+        let (c2_pda, _) = get_candidate_pda(poll_id, id2);
 
         ctx.send_ix(create_poll_ix(
             &ctx.user.pubkey(),
@@ -251,14 +266,15 @@ mod tests {
             "Desc",
         ));
 
-        for name in [name1, name2] {
-            let (pda, _) = get_candidate_pda(poll_id, name);
+        for (name, id) in [(name1, id1), (name2, id2)] {
+            let (pda, _) = get_candidate_pda(poll_id, id);
 
             ctx.send_ix(create_candidate_ix(
                 "initialize_candidate",
                 &ctx.user.pubkey(),
                 &poll_pda,
                 &pda,
+                id,
                 poll_id,
                 name,
             ));
@@ -268,8 +284,8 @@ mod tests {
                 &ctx.user.pubkey(),
                 &poll_pda,
                 &pda,
+                id,
                 poll_id,
-                name,
             ));
         }
 

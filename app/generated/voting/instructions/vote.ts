@@ -7,8 +7,6 @@
  */
 
 import {
-  addDecoderSizePrefix,
-  addEncoderSizePrefix,
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
@@ -16,19 +14,15 @@ import {
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
-  getU32Decoder,
-  getU32Encoder,
   getU64Decoder,
   getU64Encoder,
-  getUtf8Decoder,
-  getUtf8Encoder,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
   type Address,
-  type Codec,
-  type Decoder,
-  type Encoder,
+  type FixedSizeCodec,
+  type FixedSizeDecoder,
+  type FixedSizeEncoder,
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
@@ -80,38 +74,35 @@ export type VoteInstruction<
 
 export type VoteInstructionData = {
   discriminator: ReadonlyUint8Array;
-  candidateName: string;
+  candidateId: bigint;
   pollId: bigint;
 };
 
 export type VoteInstructionDataArgs = {
-  candidateName: string;
+  candidateId: number | bigint;
   pollId: number | bigint;
 };
 
-export function getVoteInstructionDataEncoder(): Encoder<VoteInstructionDataArgs> {
+export function getVoteInstructionDataEncoder(): FixedSizeEncoder<VoteInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
-      [
-        "candidateName",
-        addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder()),
-      ],
+      ["candidateId", getU64Encoder()],
       ["pollId", getU64Encoder()],
     ]),
     (value) => ({ ...value, discriminator: VOTE_DISCRIMINATOR }),
   );
 }
 
-export function getVoteInstructionDataDecoder(): Decoder<VoteInstructionData> {
+export function getVoteInstructionDataDecoder(): FixedSizeDecoder<VoteInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
-    ["candidateName", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
+    ["candidateId", getU64Decoder()],
     ["pollId", getU64Decoder()],
   ]);
 }
 
-export function getVoteInstructionDataCodec(): Codec<
+export function getVoteInstructionDataCodec(): FixedSizeCodec<
   VoteInstructionDataArgs,
   VoteInstructionData
 > {
@@ -129,7 +120,7 @@ export type VoteAsyncInput<
   signer: TransactionSigner<TAccountSigner>;
   poll?: Address<TAccountPoll>;
   candidate?: Address<TAccountCandidate>;
-  candidateName: VoteInstructionDataArgs["candidateName"];
+  candidateId: VoteInstructionDataArgs["candidateId"];
   pollId: VoteInstructionDataArgs["pollId"];
 };
 
@@ -175,7 +166,7 @@ export async function getVoteInstructionAsync<
   if (!accounts.candidate.value) {
     accounts.candidate.value = await findCandidatePda({
       pollId: expectSome(args.pollId),
-      candidateName: expectSome(args.candidateName),
+      candidateId: expectSome(args.candidateId),
     });
   }
 
@@ -206,7 +197,7 @@ export type VoteInput<
   signer: TransactionSigner<TAccountSigner>;
   poll: Address<TAccountPoll>;
   candidate: Address<TAccountCandidate>;
-  candidateName: VoteInstructionDataArgs["candidateName"];
+  candidateId: VoteInstructionDataArgs["candidateId"];
   pollId: VoteInstructionDataArgs["pollId"];
 };
 

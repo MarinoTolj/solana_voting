@@ -195,7 +195,6 @@ export async function getInitializePollInstructionAsync<
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
   }
-  console.log({accounts});
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({

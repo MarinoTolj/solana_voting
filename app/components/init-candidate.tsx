@@ -5,10 +5,11 @@ import {getInitializeCandidateInstructionAsync} from "../generated/voting";
 import { useSendTransaction } from "../lib/hooks/use-send-transaction";
 import { useState } from "react";
 
-export default function InitCandidate() {
+export default function InitCandidate({candidateAmount, pollId}:{candidateAmount:bigint, pollId:bigint}) {
   const wallet = useWallet();
   const { send , isSending} = useSendTransaction();
   const [candidateName, setCandidateName] = useState("");
+  
   
   const handleInitCandidate = async () => {
     try {
@@ -19,11 +20,11 @@ export default function InitCandidate() {
         return;
       }
 
-
       const instruction = await getInitializeCandidateInstructionAsync({
         signer: wallet.signer,
-        pollId: BigInt(1),
-        candidateName
+        pollId,
+        candidateName,
+        candidateId: candidateAmount
       });
       console.log({instruction});
       const signature = await send({ instructions: [instruction] });

@@ -29,18 +29,29 @@ pub mod voting {
     }
     pub fn initialize_candidate(
         ctx: Context<InitializeCandidate>,
-        candidate_name: String,
+        candidate_id: u64,
         _poll_id: u64,
+        candidate_name: String,
     ) -> Result<()> {
-        let candidate = &mut ctx.accounts.candidate;
         let poll = &mut ctx.accounts.poll;
-        poll.candidate_amount += 1;
+
+        require!(
+            candidate_id == poll.candidate_amount,
+            PollError::InvalidCandidateId
+        );
+
+        let candidate = &mut ctx.accounts.candidate;
+
+        candidate.id = candidate_id;
         candidate.candidate_name = candidate_name;
         candidate.candidate_votes = 0;
+
+        poll.candidate_amount += 1;
+
         Ok(())
     }
 
-    pub fn vote(ctx: Context<Vote>, _candidate_name: String, _poll_id: u64) -> Result<()> {
+    pub fn vote(ctx: Context<Vote>, _candidate_id: u64, _poll_id: u64) -> Result<()> {
         let candidate = &mut ctx.accounts.candidate;
         candidate.candidate_votes += 1;
         Ok(())
@@ -48,7 +59,7 @@ pub mod voting {
 }
 
 #[derive(Accounts)]
-#[instruction(candidate_name:String,poll_id:u64)]
+#[instruction(candidate_id:u64,poll_id:u64)]
 pub struct Vote<'info> {
     pub signer: Signer<'info>,
     #[account(
@@ -58,20 +69,20 @@ pub struct Vote<'info> {
     pub poll: Account<'info, Poll>,
     #[account(
         mut,
-        seeds = [poll_id.to_le_bytes().as_ref(), candidate_name.as_bytes()],
+        seeds = [b"candidate", poll_id.to_le_bytes().as_ref(), candidate_id.to_le_bytes().as_ref()],
         bump
     )]
     pub candidate: Account<'info, Candidate>,
 }
 
 #[derive(Accounts)]
-#[instruction(candidate_name:String,poll_id:u64)]
+#[instruction(candidate_id:u64, poll_id:u64)]
 pub struct InitializeCandidate<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"poll".as_ref(),poll_id.to_le_bytes().as_ref()],
+        seeds = [b"poll".as_ref(), poll_id.to_le_bytes().as_ref()],
         bump
     )]
     pub poll: Account<'info, Poll>,
@@ -80,7 +91,7 @@ pub struct InitializeCandidate<'info> {
         init,
         space = 8 + Candidate::INIT_SPACE,
         payer = signer,
-        seeds = [poll_id.to_le_bytes().as_ref(), candidate_name.as_bytes()],
+        seeds = [b"candidate", poll_id.to_le_bytes().as_ref(), candidate_id.to_le_bytes().as_ref()],
         bump
     )]
     pub candidate: Account<'info, Candidate>,
@@ -122,4 +133,11 @@ pub struct Candidate {
     #[max_len(32)]
     pub candidate_name: String,
     pub candidate_votes: u64,
+    pub id: u64,
+}
+
+// An enum for custom error codes
+#[error_code]
+pub enum PollError {
+    InvalidCandidateId,
 }

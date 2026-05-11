@@ -53,11 +53,13 @@ export type Candidate = {
   discriminator: ReadonlyUint8Array;
   candidateName: string;
   candidateVotes: bigint;
+  id: bigint;
 };
 
 export type CandidateArgs = {
   candidateName: string;
   candidateVotes: number | bigint;
+  id: number | bigint;
 };
 
 /** Gets the encoder for {@link CandidateArgs} account data. */
@@ -70,6 +72,7 @@ export function getCandidateEncoder(): Encoder<CandidateArgs> {
         addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder()),
       ],
       ["candidateVotes", getU64Encoder()],
+      ["id", getU64Encoder()],
     ]),
     (value) => ({ ...value, discriminator: CANDIDATE_DISCRIMINATOR }),
   );
@@ -81,6 +84,7 @@ export function getCandidateDecoder(): Decoder<Candidate> {
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["candidateName", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
     ["candidateVotes", getU64Decoder()],
+    ["id", getU64Decoder()],
   ]);
 }
 

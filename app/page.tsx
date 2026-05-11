@@ -14,9 +14,6 @@ import { ClusterSelect } from "./components/cluster-select";
 import { WalletButton } from "./components/wallet-button";
 import { useCluster } from "./components/cluster-context";
 import InitPoll from "./components/init-poll";
-import { PollCard } from "./components/poll-card";
-import InitCandidate from "./components/init-candidate";
-import { CandidateCard } from "./components/candidate-card";
 
 export default function Home() {
   const { wallet, status } = useWallet();
@@ -264,10 +261,6 @@ export default function Home() {
               </section>
             )}
             <InitPoll/>
-            <PollCard pollId={BigInt(1)}/>
-            <InitCandidate />
-            <CandidateCard pollId={BigInt(1)} candidateName="Option 1"/>
-            <CandidateCard pollId={BigInt(1)} candidateName="Option 2"/>
           </div>
         </main>
       </div>
