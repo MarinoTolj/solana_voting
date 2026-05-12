@@ -6,6 +6,14 @@ mod tests;
 
 declare_id!("EjwrYRuuUGazBKmhSAecnBPoDsb3U24Wrrom5fVZagis");
 
+pub mod error;
+mod instructions;
+mod state;
+
+use error::*;
+use instructions::*;
+use state::*;
+
 #[program]
 pub mod voting {
     use super::*;
@@ -13,19 +21,11 @@ pub mod voting {
     pub fn initialize_poll(
         ctx: Context<InitializePoll>,
         poll_id: u64,
-        poll_start: u64,
-        poll_end: u64,
+        duration: u64,
         name: String,
         description: String,
     ) -> Result<()> {
-        let poll = &mut ctx.accounts.poll;
-        poll.poll_id = poll_id;
-        poll.description = description;
-        poll.name = name;
-        poll.poll_start = poll_start;
-        poll.poll_end = poll_end;
-        poll.candidate_amount = 0;
-        Ok(())
+        init_poll(ctx, poll_id, duration, name, description)
     }
     pub fn initialize_candidate(
         ctx: Context<InitializeCandidate>,
@@ -33,111 +33,14 @@ pub mod voting {
         _poll_id: u64,
         candidate_name: String,
     ) -> Result<()> {
-        let poll = &mut ctx.accounts.poll;
-
-        require!(
-            candidate_id == poll.candidate_amount,
-            PollError::InvalidCandidateId
-        );
-
-        let candidate = &mut ctx.accounts.candidate;
-
-        candidate.id = candidate_id;
-        candidate.candidate_name = candidate_name;
-        candidate.candidate_votes = 0;
-
-        poll.candidate_amount += 1;
-
-        Ok(())
+        init_candidate(ctx, candidate_id, candidate_name)
     }
 
-    pub fn vote(ctx: Context<Vote>, _candidate_id: u64, _poll_id: u64) -> Result<()> {
-        let candidate = &mut ctx.accounts.candidate;
-        candidate.candidate_votes += 1;
-        Ok(())
+    pub fn start_poll(ctx: Context<StartPoll>, _poll_id: u64) -> Result<()> {
+        start(ctx)
     }
-}
 
-#[derive(Accounts)]
-#[instruction(candidate_id:u64,poll_id:u64)]
-pub struct Vote<'info> {
-    pub signer: Signer<'info>,
-    #[account(
-        seeds = [b"poll".as_ref(), poll_id.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub poll: Account<'info, Poll>,
-    #[account(
-        mut,
-        seeds = [b"candidate", poll_id.to_le_bytes().as_ref(), candidate_id.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub candidate: Account<'info, Candidate>,
-}
-
-#[derive(Accounts)]
-#[instruction(candidate_id:u64, poll_id:u64)]
-pub struct InitializeCandidate<'info> {
-    #[account(mut)]
-    pub signer: Signer<'info>,
-    #[account(
-        mut,
-        seeds = [b"poll".as_ref(), poll_id.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub poll: Account<'info, Poll>,
-
-    #[account(
-        init,
-        space = 8 + Candidate::INIT_SPACE,
-        payer = signer,
-        seeds = [b"candidate", poll_id.to_le_bytes().as_ref(), candidate_id.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub candidate: Account<'info, Candidate>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-#[instruction(poll_id:u64)]
-pub struct InitializePoll<'info> {
-    #[account(mut)]
-    pub signer: Signer<'info>,
-    #[account(
-        init,
-        space = 8 + Poll::INIT_SPACE,
-        payer = signer,
-        seeds = [b"poll".as_ref(), poll_id.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub poll: Account<'info, Poll>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Debug, InitSpace, PartialEq, Eq)]
-#[account]
-pub struct Poll {
-    pub poll_id: u64,
-    #[max_len(16)]
-    pub name: String,
-    #[max_len(32)]
-    pub description: String,
-    pub poll_start: u64,
-    pub poll_end: u64,
-    pub candidate_amount: u64,
-}
-
-#[derive(Debug, InitSpace, PartialEq, Eq)]
-#[account]
-pub struct Candidate {
-    #[max_len(32)]
-    pub candidate_name: String,
-    pub candidate_votes: u64,
-    pub id: u64,
-}
-
-// An enum for custom error codes
-#[error_code]
-pub enum PollError {
-    InvalidCandidateId,
+    pub fn vote_candidate(ctx: Context<Vote>, _candidate_id: u64, _poll_id: u64) -> Result<()> {
+        vote(ctx)
+    }
 }

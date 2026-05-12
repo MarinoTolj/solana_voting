@@ -26,13 +26,12 @@ import {
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
-  type ReadonlyAccount,
   type ReadonlySignerAccount,
   type ReadonlyUint8Array,
   type TransactionSigner,
   type WritableAccount,
 } from "@solana/kit";
-import { findCandidatePda, findPollPda } from "../pdas";
+import { findPollPda } from "../pdas";
 import { VOTING_PROGRAM_ADDRESS } from "../programs";
 import {
   expectSome,
@@ -40,19 +39,18 @@ import {
   type ResolvedAccount,
 } from "../shared";
 
-export const VOTE_DISCRIMINATOR = new Uint8Array([
-  227, 110, 155, 23, 136, 126, 172, 25,
+export const START_POLL_DISCRIMINATOR = new Uint8Array([
+  59, 188, 204, 28, 129, 88, 202, 242,
 ]);
 
-export function getVoteDiscriminatorBytes() {
-  return fixEncoderSize(getBytesEncoder(), 8).encode(VOTE_DISCRIMINATOR);
+export function getStartPollDiscriminatorBytes() {
+  return fixEncoderSize(getBytesEncoder(), 8).encode(START_POLL_DISCRIMINATOR);
 }
 
-export type VoteInstruction<
+export type StartPollInstruction<
   TProgram extends string = typeof VOTING_PROGRAM_ADDRESS,
   TAccountSigner extends string | AccountMeta<string> = string,
   TAccountPoll extends string | AccountMeta<string> = string,
-  TAccountCandidate extends string | AccountMeta<string> = string,
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -63,82 +61,64 @@ export type VoteInstruction<
             AccountSignerMeta<TAccountSigner>
         : TAccountSigner,
       TAccountPoll extends string
-        ? ReadonlyAccount<TAccountPoll>
+        ? WritableAccount<TAccountPoll>
         : TAccountPoll,
-      TAccountCandidate extends string
-        ? WritableAccount<TAccountCandidate>
-        : TAccountCandidate,
       ...TRemainingAccounts,
     ]
   >;
 
-export type VoteInstructionData = {
+export type StartPollInstructionData = {
   discriminator: ReadonlyUint8Array;
-  candidateId: bigint;
   pollId: bigint;
 };
 
-export type VoteInstructionDataArgs = {
-  candidateId: number | bigint;
-  pollId: number | bigint;
-};
+export type StartPollInstructionDataArgs = { pollId: number | bigint };
 
-export function getVoteInstructionDataEncoder(): FixedSizeEncoder<VoteInstructionDataArgs> {
+export function getStartPollInstructionDataEncoder(): FixedSizeEncoder<StartPollInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
-      ["candidateId", getU64Encoder()],
       ["pollId", getU64Encoder()],
     ]),
-    (value) => ({ ...value, discriminator: VOTE_DISCRIMINATOR }),
+    (value) => ({ ...value, discriminator: START_POLL_DISCRIMINATOR }),
   );
 }
 
-export function getVoteInstructionDataDecoder(): FixedSizeDecoder<VoteInstructionData> {
+export function getStartPollInstructionDataDecoder(): FixedSizeDecoder<StartPollInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
-    ["candidateId", getU64Decoder()],
     ["pollId", getU64Decoder()],
   ]);
 }
 
-export function getVoteInstructionDataCodec(): FixedSizeCodec<
-  VoteInstructionDataArgs,
-  VoteInstructionData
+export function getStartPollInstructionDataCodec(): FixedSizeCodec<
+  StartPollInstructionDataArgs,
+  StartPollInstructionData
 > {
   return combineCodec(
-    getVoteInstructionDataEncoder(),
-    getVoteInstructionDataDecoder(),
+    getStartPollInstructionDataEncoder(),
+    getStartPollInstructionDataDecoder(),
   );
 }
 
-export type VoteAsyncInput<
+export type StartPollAsyncInput<
   TAccountSigner extends string = string,
   TAccountPoll extends string = string,
-  TAccountCandidate extends string = string,
 > = {
   signer: TransactionSigner<TAccountSigner>;
   poll?: Address<TAccountPoll>;
-  candidate?: Address<TAccountCandidate>;
-  candidateId: VoteInstructionDataArgs["candidateId"];
-  pollId: VoteInstructionDataArgs["pollId"];
+  pollId: StartPollInstructionDataArgs["pollId"];
 };
 
-export async function getVoteInstructionAsync<
+export async function getStartPollInstructionAsync<
   TAccountSigner extends string,
   TAccountPoll extends string,
-  TAccountCandidate extends string,
   TProgramAddress extends Address = typeof VOTING_PROGRAM_ADDRESS,
 >(
-  input: VoteAsyncInput<TAccountSigner, TAccountPoll, TAccountCandidate>,
+  input: StartPollAsyncInput<TAccountSigner, TAccountPoll>,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
-  VoteInstruction<
-    TProgramAddress,
-    TAccountSigner,
-    TAccountPoll,
-    TAccountCandidate
-  >
+  StartPollInstruction<TProgramAddress, TAccountSigner, TAccountPoll>
 > {
   // Program address.
   const programAddress = config?.programAddress ?? VOTING_PROGRAM_ADDRESS;
@@ -146,8 +126,7 @@ export async function getVoteInstructionAsync<
   // Original accounts.
   const originalAccounts = {
     signer: { value: input.signer ?? null, isWritable: false },
-    poll: { value: input.poll ?? null, isWritable: false },
-    candidate: { value: input.candidate ?? null, isWritable: true },
+    poll: { value: input.poll ?? null, isWritable: true },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -163,66 +142,41 @@ export async function getVoteInstructionAsync<
       pollId: expectSome(args.pollId),
     });
   }
-  if (!accounts.candidate.value) {
-    accounts.candidate.value = await findCandidatePda({
-      pollId: expectSome(args.pollId),
-      candidateId: expectSome(args.candidateId),
-    });
-  }
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
-    accounts: [
-      getAccountMeta(accounts.signer),
-      getAccountMeta(accounts.poll),
-      getAccountMeta(accounts.candidate),
-    ],
-    data: getVoteInstructionDataEncoder().encode(
-      args as VoteInstructionDataArgs,
+    accounts: [getAccountMeta(accounts.signer), getAccountMeta(accounts.poll)],
+    data: getStartPollInstructionDataEncoder().encode(
+      args as StartPollInstructionDataArgs,
     ),
     programAddress,
-  } as VoteInstruction<
-    TProgramAddress,
-    TAccountSigner,
-    TAccountPoll,
-    TAccountCandidate
-  >);
+  } as StartPollInstruction<TProgramAddress, TAccountSigner, TAccountPoll>);
 }
 
-export type VoteInput<
+export type StartPollInput<
   TAccountSigner extends string = string,
   TAccountPoll extends string = string,
-  TAccountCandidate extends string = string,
 > = {
   signer: TransactionSigner<TAccountSigner>;
   poll: Address<TAccountPoll>;
-  candidate: Address<TAccountCandidate>;
-  candidateId: VoteInstructionDataArgs["candidateId"];
-  pollId: VoteInstructionDataArgs["pollId"];
+  pollId: StartPollInstructionDataArgs["pollId"];
 };
 
-export function getVoteInstruction<
+export function getStartPollInstruction<
   TAccountSigner extends string,
   TAccountPoll extends string,
-  TAccountCandidate extends string,
   TProgramAddress extends Address = typeof VOTING_PROGRAM_ADDRESS,
 >(
-  input: VoteInput<TAccountSigner, TAccountPoll, TAccountCandidate>,
+  input: StartPollInput<TAccountSigner, TAccountPoll>,
   config?: { programAddress?: TProgramAddress },
-): VoteInstruction<
-  TProgramAddress,
-  TAccountSigner,
-  TAccountPoll,
-  TAccountCandidate
-> {
+): StartPollInstruction<TProgramAddress, TAccountSigner, TAccountPoll> {
   // Program address.
   const programAddress = config?.programAddress ?? VOTING_PROGRAM_ADDRESS;
 
   // Original accounts.
   const originalAccounts = {
     signer: { value: input.signer ?? null, isWritable: false },
-    poll: { value: input.poll ?? null, isWritable: false },
-    candidate: { value: input.candidate ?? null, isWritable: true },
+    poll: { value: input.poll ?? null, isWritable: true },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -234,24 +188,15 @@ export function getVoteInstruction<
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
-    accounts: [
-      getAccountMeta(accounts.signer),
-      getAccountMeta(accounts.poll),
-      getAccountMeta(accounts.candidate),
-    ],
-    data: getVoteInstructionDataEncoder().encode(
-      args as VoteInstructionDataArgs,
+    accounts: [getAccountMeta(accounts.signer), getAccountMeta(accounts.poll)],
+    data: getStartPollInstructionDataEncoder().encode(
+      args as StartPollInstructionDataArgs,
     ),
     programAddress,
-  } as VoteInstruction<
-    TProgramAddress,
-    TAccountSigner,
-    TAccountPoll,
-    TAccountCandidate
-  >);
+  } as StartPollInstruction<TProgramAddress, TAccountSigner, TAccountPoll>);
 }
 
-export type ParsedVoteInstruction<
+export type ParsedStartPollInstruction<
   TProgram extends string = typeof VOTING_PROGRAM_ADDRESS,
   TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[],
 > = {
@@ -259,20 +204,19 @@ export type ParsedVoteInstruction<
   accounts: {
     signer: TAccountMetas[0];
     poll: TAccountMetas[1];
-    candidate: TAccountMetas[2];
   };
-  data: VoteInstructionData;
+  data: StartPollInstructionData;
 };
 
-export function parseVoteInstruction<
+export function parseStartPollInstruction<
   TProgram extends string,
   TAccountMetas extends readonly AccountMeta[],
 >(
   instruction: Instruction<TProgram> &
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
-): ParsedVoteInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+): ParsedStartPollInstruction<TProgram, TAccountMetas> {
+  if (instruction.accounts.length < 2) {
     // TODO: Coded error.
     throw new Error("Not enough accounts");
   }
@@ -284,11 +228,7 @@ export function parseVoteInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: {
-      signer: getNextAccount(),
-      poll: getNextAccount(),
-      candidate: getNextAccount(),
-    },
-    data: getVoteInstructionDataDecoder().decode(instruction.data),
+    accounts: { signer: getNextAccount(), poll: getNextAccount() },
+    data: getStartPollInstructionDataDecoder().decode(instruction.data),
   };
 }

@@ -19,10 +19,12 @@ import {
 import {
   parseInitializeCandidateInstruction,
   parseInitializePollInstruction,
-  parseVoteInstruction,
+  parseStartPollInstruction,
+  parseVoteCandidateInstruction,
   type ParsedInitializeCandidateInstruction,
   type ParsedInitializePollInstruction,
-  type ParsedVoteInstruction,
+  type ParsedStartPollInstruction,
+  type ParsedVoteCandidateInstruction,
 } from "../instructions";
 
 export const VOTING_PROGRAM_ADDRESS =
@@ -67,7 +69,8 @@ export function identifyVotingAccount(
 export enum VotingInstruction {
   InitializeCandidate,
   InitializePoll,
-  Vote,
+  StartPoll,
+  VoteCandidate,
 }
 
 export function identifyVotingInstruction(
@@ -100,12 +103,23 @@ export function identifyVotingInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
-        new Uint8Array([227, 110, 155, 23, 136, 126, 172, 25]),
+        new Uint8Array([59, 188, 204, 28, 129, 88, 202, 242]),
       ),
       0,
     )
   ) {
-    return VotingInstruction.Vote;
+    return VotingInstruction.StartPoll;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([66, 238, 61, 153, 143, 252, 82, 173]),
+      ),
+      0,
+    )
+  ) {
+    return VotingInstruction.VoteCandidate;
   }
   throw new Error(
     "The provided instruction could not be identified as a voting instruction.",
@@ -122,8 +136,11 @@ export type ParsedVotingInstruction<
       instructionType: VotingInstruction.InitializePoll;
     } & ParsedInitializePollInstruction<TProgram>)
   | ({
-      instructionType: VotingInstruction.Vote;
-    } & ParsedVoteInstruction<TProgram>);
+      instructionType: VotingInstruction.StartPoll;
+    } & ParsedStartPollInstruction<TProgram>)
+  | ({
+      instructionType: VotingInstruction.VoteCandidate;
+    } & ParsedVoteCandidateInstruction<TProgram>);
 
 export function parseVotingInstruction<TProgram extends string>(
   instruction: Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array>,
@@ -144,11 +161,18 @@ export function parseVotingInstruction<TProgram extends string>(
         ...parseInitializePollInstruction(instruction),
       };
     }
-    case VotingInstruction.Vote: {
+    case VotingInstruction.StartPoll: {
       assertIsInstructionWithAccounts(instruction);
       return {
-        instructionType: VotingInstruction.Vote,
-        ...parseVoteInstruction(instruction),
+        instructionType: VotingInstruction.StartPoll,
+        ...parseStartPollInstruction(instruction),
+      };
+    }
+    case VotingInstruction.VoteCandidate: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: VotingInstruction.VoteCandidate,
+        ...parseVoteCandidateInstruction(instruction),
       };
     }
     default:

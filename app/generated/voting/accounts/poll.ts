@@ -19,6 +19,10 @@ import {
   fixEncoderSize,
   getBytesDecoder,
   getBytesEncoder,
+  getI64Decoder,
+  getI64Encoder,
+  getOptionDecoder,
+  getOptionEncoder,
   getStructDecoder,
   getStructEncoder,
   getU32Decoder,
@@ -38,6 +42,8 @@ import {
   type FetchAccountsConfig,
   type MaybeAccount,
   type MaybeEncodedAccount,
+  type Option,
+  type OptionOrNullable,
   type ReadonlyUint8Array,
 } from "@solana/kit";
 
@@ -54,8 +60,9 @@ export type Poll = {
   pollId: bigint;
   name: string;
   description: string;
-  pollStart: bigint;
-  pollEnd: bigint;
+  startedAt: Option<bigint>;
+  /** In seconds */
+  duration: bigint;
   candidateAmount: bigint;
 };
 
@@ -63,8 +70,9 @@ export type PollArgs = {
   pollId: number | bigint;
   name: string;
   description: string;
-  pollStart: number | bigint;
-  pollEnd: number | bigint;
+  startedAt: OptionOrNullable<number | bigint>;
+  /** In seconds */
+  duration: number | bigint;
   candidateAmount: number | bigint;
 };
 
@@ -76,8 +84,8 @@ export function getPollEncoder(): Encoder<PollArgs> {
       ["pollId", getU64Encoder()],
       ["name", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
       ["description", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
-      ["pollStart", getU64Encoder()],
-      ["pollEnd", getU64Encoder()],
+      ["startedAt", getOptionEncoder(getI64Encoder())],
+      ["duration", getU64Encoder()],
       ["candidateAmount", getU64Encoder()],
     ]),
     (value) => ({ ...value, discriminator: POLL_DISCRIMINATOR }),
@@ -91,8 +99,8 @@ export function getPollDecoder(): Decoder<Poll> {
     ["pollId", getU64Decoder()],
     ["name", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
     ["description", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
-    ["pollStart", getU64Decoder()],
-    ["pollEnd", getU64Decoder()],
+    ["startedAt", getOptionDecoder(getI64Decoder())],
+    ["duration", getU64Decoder()],
     ["candidateAmount", getU64Decoder()],
   ]);
 }

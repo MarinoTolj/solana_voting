@@ -7,8 +7,6 @@
  */
 
 import {
-  addDecoderSizePrefix,
-  addEncoderSizePrefix,
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
@@ -16,29 +14,25 @@ import {
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
-  getU32Decoder,
-  getU32Encoder,
   getU64Decoder,
   getU64Encoder,
-  getUtf8Decoder,
-  getUtf8Encoder,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
   type Address,
-  type Codec,
-  type Decoder,
-  type Encoder,
+  type FixedSizeCodec,
+  type FixedSizeDecoder,
+  type FixedSizeEncoder,
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
   type ReadonlyAccount,
+  type ReadonlySignerAccount,
   type ReadonlyUint8Array,
   type TransactionSigner,
   type WritableAccount,
-  type WritableSignerAccount,
 } from "@solana/kit";
-import { findPollPda } from "../pdas";
+import { findCandidatePda, findPollPda } from "../pdas";
 import { VOTING_PROGRAM_ADDRESS } from "../programs";
 import {
   expectSome,
@@ -46,121 +40,110 @@ import {
   type ResolvedAccount,
 } from "../shared";
 
-export const INITIALIZE_POLL_DISCRIMINATOR = new Uint8Array([
-  193, 22, 99, 197, 18, 33, 115, 117,
+export const VOTE_CANDIDATE_DISCRIMINATOR = new Uint8Array([
+  66, 238, 61, 153, 143, 252, 82, 173,
 ]);
 
-export function getInitializePollDiscriminatorBytes() {
+export function getVoteCandidateDiscriminatorBytes() {
   return fixEncoderSize(getBytesEncoder(), 8).encode(
-    INITIALIZE_POLL_DISCRIMINATOR,
+    VOTE_CANDIDATE_DISCRIMINATOR,
   );
 }
 
-export type InitializePollInstruction<
+export type VoteCandidateInstruction<
   TProgram extends string = typeof VOTING_PROGRAM_ADDRESS,
   TAccountSigner extends string | AccountMeta<string> = string,
   TAccountPoll extends string | AccountMeta<string> = string,
-  TAccountSystemProgram extends string | AccountMeta<string> =
-    "11111111111111111111111111111111",
+  TAccountCandidate extends string | AccountMeta<string> = string,
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
       TAccountSigner extends string
-        ? WritableSignerAccount<TAccountSigner> &
+        ? ReadonlySignerAccount<TAccountSigner> &
             AccountSignerMeta<TAccountSigner>
         : TAccountSigner,
       TAccountPoll extends string
-        ? WritableAccount<TAccountPoll>
+        ? ReadonlyAccount<TAccountPoll>
         : TAccountPoll,
-      TAccountSystemProgram extends string
-        ? ReadonlyAccount<TAccountSystemProgram>
-        : TAccountSystemProgram,
+      TAccountCandidate extends string
+        ? WritableAccount<TAccountCandidate>
+        : TAccountCandidate,
       ...TRemainingAccounts,
     ]
   >;
 
-export type InitializePollInstructionData = {
+export type VoteCandidateInstructionData = {
   discriminator: ReadonlyUint8Array;
+  candidateId: bigint;
   pollId: bigint;
-  duration: bigint;
-  name: string;
-  description: string;
 };
 
-export type InitializePollInstructionDataArgs = {
+export type VoteCandidateInstructionDataArgs = {
+  candidateId: number | bigint;
   pollId: number | bigint;
-  duration: number | bigint;
-  name: string;
-  description: string;
 };
 
-export function getInitializePollInstructionDataEncoder(): Encoder<InitializePollInstructionDataArgs> {
+export function getVoteCandidateInstructionDataEncoder(): FixedSizeEncoder<VoteCandidateInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
+      ["candidateId", getU64Encoder()],
       ["pollId", getU64Encoder()],
-      ["duration", getU64Encoder()],
-      ["name", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
-      ["description", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
     ]),
-    (value) => ({ ...value, discriminator: INITIALIZE_POLL_DISCRIMINATOR }),
+    (value) => ({ ...value, discriminator: VOTE_CANDIDATE_DISCRIMINATOR }),
   );
 }
 
-export function getInitializePollInstructionDataDecoder(): Decoder<InitializePollInstructionData> {
+export function getVoteCandidateInstructionDataDecoder(): FixedSizeDecoder<VoteCandidateInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
+    ["candidateId", getU64Decoder()],
     ["pollId", getU64Decoder()],
-    ["duration", getU64Decoder()],
-    ["name", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
-    ["description", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
   ]);
 }
 
-export function getInitializePollInstructionDataCodec(): Codec<
-  InitializePollInstructionDataArgs,
-  InitializePollInstructionData
+export function getVoteCandidateInstructionDataCodec(): FixedSizeCodec<
+  VoteCandidateInstructionDataArgs,
+  VoteCandidateInstructionData
 > {
   return combineCodec(
-    getInitializePollInstructionDataEncoder(),
-    getInitializePollInstructionDataDecoder(),
+    getVoteCandidateInstructionDataEncoder(),
+    getVoteCandidateInstructionDataDecoder(),
   );
 }
 
-export type InitializePollAsyncInput<
+export type VoteCandidateAsyncInput<
   TAccountSigner extends string = string,
   TAccountPoll extends string = string,
-  TAccountSystemProgram extends string = string,
+  TAccountCandidate extends string = string,
 > = {
   signer: TransactionSigner<TAccountSigner>;
   poll?: Address<TAccountPoll>;
-  systemProgram?: Address<TAccountSystemProgram>;
-  pollId: InitializePollInstructionDataArgs["pollId"];
-  duration: InitializePollInstructionDataArgs["duration"];
-  name: InitializePollInstructionDataArgs["name"];
-  description: InitializePollInstructionDataArgs["description"];
+  candidate?: Address<TAccountCandidate>;
+  candidateId: VoteCandidateInstructionDataArgs["candidateId"];
+  pollId: VoteCandidateInstructionDataArgs["pollId"];
 };
 
-export async function getInitializePollInstructionAsync<
+export async function getVoteCandidateInstructionAsync<
   TAccountSigner extends string,
   TAccountPoll extends string,
-  TAccountSystemProgram extends string,
+  TAccountCandidate extends string,
   TProgramAddress extends Address = typeof VOTING_PROGRAM_ADDRESS,
 >(
-  input: InitializePollAsyncInput<
+  input: VoteCandidateAsyncInput<
     TAccountSigner,
     TAccountPoll,
-    TAccountSystemProgram
+    TAccountCandidate
   >,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
-  InitializePollInstruction<
+  VoteCandidateInstruction<
     TProgramAddress,
     TAccountSigner,
     TAccountPoll,
-    TAccountSystemProgram
+    TAccountCandidate
   >
 > {
   // Program address.
@@ -168,9 +151,9 @@ export async function getInitializePollInstructionAsync<
 
   // Original accounts.
   const originalAccounts = {
-    signer: { value: input.signer ?? null, isWritable: true },
-    poll: { value: input.poll ?? null, isWritable: true },
-    systemProgram: { value: input.systemProgram ?? null, isWritable: false },
+    signer: { value: input.signer ?? null, isWritable: false },
+    poll: { value: input.poll ?? null, isWritable: false },
+    candidate: { value: input.candidate ?? null, isWritable: true },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -186,9 +169,11 @@ export async function getInitializePollInstructionAsync<
       pollId: expectSome(args.pollId),
     });
   }
-  if (!accounts.systemProgram.value) {
-    accounts.systemProgram.value =
-      "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
+  if (!accounts.candidate.value) {
+    accounts.candidate.value = await findCandidatePda({
+      pollId: expectSome(args.pollId),
+      candidateId: expectSome(args.candidateId),
+    });
   }
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
@@ -196,60 +181,54 @@ export async function getInitializePollInstructionAsync<
     accounts: [
       getAccountMeta(accounts.signer),
       getAccountMeta(accounts.poll),
-      getAccountMeta(accounts.systemProgram),
+      getAccountMeta(accounts.candidate),
     ],
-    data: getInitializePollInstructionDataEncoder().encode(
-      args as InitializePollInstructionDataArgs,
+    data: getVoteCandidateInstructionDataEncoder().encode(
+      args as VoteCandidateInstructionDataArgs,
     ),
     programAddress,
-  } as InitializePollInstruction<
+  } as VoteCandidateInstruction<
     TProgramAddress,
     TAccountSigner,
     TAccountPoll,
-    TAccountSystemProgram
+    TAccountCandidate
   >);
 }
 
-export type InitializePollInput<
+export type VoteCandidateInput<
   TAccountSigner extends string = string,
   TAccountPoll extends string = string,
-  TAccountSystemProgram extends string = string,
+  TAccountCandidate extends string = string,
 > = {
   signer: TransactionSigner<TAccountSigner>;
   poll: Address<TAccountPoll>;
-  systemProgram?: Address<TAccountSystemProgram>;
-  pollId: InitializePollInstructionDataArgs["pollId"];
-  duration: InitializePollInstructionDataArgs["duration"];
-  name: InitializePollInstructionDataArgs["name"];
-  description: InitializePollInstructionDataArgs["description"];
+  candidate: Address<TAccountCandidate>;
+  candidateId: VoteCandidateInstructionDataArgs["candidateId"];
+  pollId: VoteCandidateInstructionDataArgs["pollId"];
 };
 
-export function getInitializePollInstruction<
+export function getVoteCandidateInstruction<
   TAccountSigner extends string,
   TAccountPoll extends string,
-  TAccountSystemProgram extends string,
+  TAccountCandidate extends string,
   TProgramAddress extends Address = typeof VOTING_PROGRAM_ADDRESS,
 >(
-  input: InitializePollInput<
-    TAccountSigner,
-    TAccountPoll,
-    TAccountSystemProgram
-  >,
+  input: VoteCandidateInput<TAccountSigner, TAccountPoll, TAccountCandidate>,
   config?: { programAddress?: TProgramAddress },
-): InitializePollInstruction<
+): VoteCandidateInstruction<
   TProgramAddress,
   TAccountSigner,
   TAccountPoll,
-  TAccountSystemProgram
+  TAccountCandidate
 > {
   // Program address.
   const programAddress = config?.programAddress ?? VOTING_PROGRAM_ADDRESS;
 
   // Original accounts.
   const originalAccounts = {
-    signer: { value: input.signer ?? null, isWritable: true },
-    poll: { value: input.poll ?? null, isWritable: true },
-    systemProgram: { value: input.systemProgram ?? null, isWritable: false },
+    signer: { value: input.signer ?? null, isWritable: false },
+    poll: { value: input.poll ?? null, isWritable: false },
+    candidate: { value: input.candidate ?? null, isWritable: true },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -259,32 +238,26 @@ export function getInitializePollInstruction<
   // Original args.
   const args = { ...input };
 
-  // Resolve default values.
-  if (!accounts.systemProgram.value) {
-    accounts.systemProgram.value =
-      "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
-  }
-
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
       getAccountMeta(accounts.signer),
       getAccountMeta(accounts.poll),
-      getAccountMeta(accounts.systemProgram),
+      getAccountMeta(accounts.candidate),
     ],
-    data: getInitializePollInstructionDataEncoder().encode(
-      args as InitializePollInstructionDataArgs,
+    data: getVoteCandidateInstructionDataEncoder().encode(
+      args as VoteCandidateInstructionDataArgs,
     ),
     programAddress,
-  } as InitializePollInstruction<
+  } as VoteCandidateInstruction<
     TProgramAddress,
     TAccountSigner,
     TAccountPoll,
-    TAccountSystemProgram
+    TAccountCandidate
   >);
 }
 
-export type ParsedInitializePollInstruction<
+export type ParsedVoteCandidateInstruction<
   TProgram extends string = typeof VOTING_PROGRAM_ADDRESS,
   TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[],
 > = {
@@ -292,19 +265,19 @@ export type ParsedInitializePollInstruction<
   accounts: {
     signer: TAccountMetas[0];
     poll: TAccountMetas[1];
-    systemProgram: TAccountMetas[2];
+    candidate: TAccountMetas[2];
   };
-  data: InitializePollInstructionData;
+  data: VoteCandidateInstructionData;
 };
 
-export function parseInitializePollInstruction<
+export function parseVoteCandidateInstruction<
   TProgram extends string,
   TAccountMetas extends readonly AccountMeta[],
 >(
   instruction: Instruction<TProgram> &
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
-): ParsedInitializePollInstruction<TProgram, TAccountMetas> {
+): ParsedVoteCandidateInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 3) {
     // TODO: Coded error.
     throw new Error("Not enough accounts");
@@ -320,8 +293,8 @@ export function parseInitializePollInstruction<
     accounts: {
       signer: getNextAccount(),
       poll: getNextAccount(),
-      systemProgram: getNextAccount(),
+      candidate: getNextAccount(),
     },
-    data: getInitializePollInstructionDataDecoder().decode(instruction.data),
+    data: getVoteCandidateInstructionDataDecoder().decode(instruction.data),
   };
 }

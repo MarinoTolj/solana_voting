@@ -14,7 +14,7 @@ import {
   fetchCandidate,
   fetchPoll,
   findCandidatePda,
-  getVoteInstructionAsync,
+  getVoteCandidateInstructionAsync,
   type Poll,
 } from "../generated/voting";
 import { useWallet } from "../lib/wallet/context";
@@ -26,9 +26,10 @@ const rpc = createSolanaRpc(
 
 type Props = {
   seeds:CandidateSeeds;
+  startPoll:boolean;
 };
 
-export function CandidateCard({ seeds }: Props) {
+export function CandidateCard({ seeds, startPoll }: Props) {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
   const wallet = useWallet();
@@ -79,7 +80,7 @@ export function CandidateCard({ seeds }: Props) {
           }
     
     
-          const instruction = await getVoteInstructionAsync({
+          const instruction = await getVoteCandidateInstructionAsync({
             signer: wallet.signer,
             candidateId:seeds.candidateId,
             pollId:seeds.pollId,
@@ -107,8 +108,8 @@ export function CandidateCard({ seeds }: Props) {
     <div>
       <p>Name: {candidate.candidateName}</p>
       <p>Votes: {candidate.candidateVotes}</p>
-      
-      <button onClick={handleVote}>
+      <p>SP: {startPoll}</p>
+      <button onClick={handleVote} disabled={!startPoll}>
         Vote
       </button>
       

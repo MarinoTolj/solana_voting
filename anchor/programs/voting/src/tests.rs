@@ -1,7 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use crate::{Candidate, Poll, ID as PROGRAM_ID};
-    use anchor_lang::{prelude::system_program, AccountDeserialize};
+    use std::{thread, time::Duration};
+
+    use crate::{
+        state::{candidate::Candidate, poll::Poll},
+        ID as PROGRAM_ID,
+    };
+    use anchor_lang::{prelude::system_program, solana_program::log, AccountDeserialize};
     use litesvm::LiteSVM;
     use solana_sdk::{
         hash::hash,
@@ -41,6 +46,7 @@ mod tests {
             );
 
             let res = self.svm.send_transaction(tx);
+            log::msg!("{:?}", res);
             assert!(res.is_ok());
         }
 
@@ -83,16 +89,15 @@ mod tests {
         signer: &Pubkey,
         poll: &Pubkey,
         poll_id: u64,
-        poll_start: u64,
-        poll_end: u64,
+        duration: u64,
         name: &str,
         description: &str,
     ) -> Instruction {
         let mut data = get_discriminator("initialize_poll").to_vec();
 
         data.extend_from_slice(&poll_id.to_le_bytes());
-        data.extend_from_slice(&poll_start.to_le_bytes());
-        data.extend_from_slice(&poll_end.to_le_bytes());
+        data.extend_from_slice(&duration.to_le_bytes());
+
         write_string(&mut data, name);
         write_string(&mut data, description);
 
@@ -107,6 +112,7 @@ mod tests {
         }
     }
 
+    //TODO: remove ix_name and inline it in fn.
     fn create_candidate_ix(
         ix_name: &str,
         signer: &Pubkey,
@@ -134,6 +140,20 @@ mod tests {
         }
     }
 
+    fn start_poll_ix(ix_name: &str, signer: &Pubkey, poll: &Pubkey, poll_id: u64) -> Instruction {
+        let mut data = get_discriminator(ix_name).to_vec();
+        data.extend_from_slice(&poll_id.to_le_bytes());
+
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: vec![
+                AccountMeta::new(*signer, true),
+                AccountMeta::new(*poll, false),
+            ],
+            data,
+        }
+    }
+
     fn vote_ix(
         ix_name: &str,
         signer: &Pubkey,
@@ -153,7 +173,6 @@ mod tests {
                 AccountMeta::new(*signer, true),
                 AccountMeta::new(*poll, false),
                 AccountMeta::new(*candidate, false),
-                AccountMeta::new_readonly(system_program::ID, false),
             ],
             data,
         }
@@ -170,17 +189,16 @@ mod tests {
             poll_id,
             name: "Test name".into(),
             description: "Test desc".into(),
-            poll_start: 0,
-            poll_end: 1,
             candidate_amount: 0,
+            started_at: None,
+            duration: 0,
         };
 
         ctx.send_ix(create_poll_ix(
             &ctx.user.pubkey(),
             &poll_pda,
             poll_id,
-            expected.poll_start,
-            expected.poll_end,
+            expected.duration,
             &expected.name,
             &expected.description,
         ));
@@ -200,7 +218,6 @@ mod tests {
             &ctx.user.pubkey(),
             &poll_pda,
             poll_id,
-            0,
             1,
             "Test",
             "Desc",
@@ -260,8 +277,7 @@ mod tests {
             &ctx.user.pubkey(),
             &poll_pda,
             poll_id,
-            0,
-            1,
+            60,
             "Test",
             "Desc",
         ));
@@ -278,9 +294,18 @@ mod tests {
                 poll_id,
                 name,
             ));
+        }
+        ctx.send_ix(start_poll_ix(
+            "start_poll",
+            &ctx.user.pubkey(),
+            &poll_pda,
+            poll_id,
+        ));
+        for (name, id) in [(name1, id1), (name2, id2)] {
+            let (pda, _) = get_candidate_pda(poll_id, id);
 
             ctx.send_ix(vote_ix(
-                "vote",
+                "vote_candidate",
                 &ctx.user.pubkey(),
                 &poll_pda,
                 &pda,

@@ -16,12 +16,31 @@ import { VOTING_PROGRAM_ADDRESS } from "../programs";
 
 /** InvalidCandidateId:  */
 export const VOTING_ERROR__INVALID_CANDIDATE_ID = 0x1770; // 6000
+/** CannotInitCandidate:  */
+export const VOTING_ERROR__CANNOT_INIT_CANDIDATE = 0x1771; // 6001
+/** PollNotDraft: Poll is not in draft */
+export const VOTING_ERROR__POLL_NOT_DRAFT = 0x1772; // 6002
+/** PollNotActive: Poll is not active */
+export const VOTING_ERROR__POLL_NOT_ACTIVE = 0x1773; // 6003
+/** PollEnded: Poll has ended */
+export const VOTING_ERROR__POLL_ENDED = 0x1774; // 6004
 
-export type VotingError = typeof VOTING_ERROR__INVALID_CANDIDATE_ID;
+export type VotingError =
+  | typeof VOTING_ERROR__CANNOT_INIT_CANDIDATE
+  | typeof VOTING_ERROR__INVALID_CANDIDATE_ID
+  | typeof VOTING_ERROR__POLL_ENDED
+  | typeof VOTING_ERROR__POLL_NOT_ACTIVE
+  | typeof VOTING_ERROR__POLL_NOT_DRAFT;
 
 let votingErrorMessages: Record<VotingError, string> | undefined;
 if (process.env.NODE_ENV !== "production") {
-  votingErrorMessages = { [VOTING_ERROR__INVALID_CANDIDATE_ID]: `` };
+  votingErrorMessages = {
+    [VOTING_ERROR__CANNOT_INIT_CANDIDATE]: ``,
+    [VOTING_ERROR__INVALID_CANDIDATE_ID]: ``,
+    [VOTING_ERROR__POLL_ENDED]: `Poll has ended`,
+    [VOTING_ERROR__POLL_NOT_ACTIVE]: `Poll is not active`,
+    [VOTING_ERROR__POLL_NOT_DRAFT]: `Poll is not in draft`,
+  };
 }
 
 export function getVotingErrorMessage(code: VotingError): string {
