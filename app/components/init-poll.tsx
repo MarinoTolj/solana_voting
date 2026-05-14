@@ -4,7 +4,8 @@ import { useWallet } from "../lib/wallet/context";
 import {findPollPda, getInitializeCandidateInstructionAsync, getInitializePollInstructionAsync} from "../generated/voting/";
 import { useSendTransaction } from "../lib/hooks/use-send-transaction";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import {  useState } from "react";
+import handleInsertPoll from "../utils/handle-init-poll";
 
 export default function InitPoll() {
   const wallet = useWallet();
@@ -15,7 +16,7 @@ export default function InitPoll() {
   const [error, setError] = useState<string | null>(null);
   const [candidateInput, setCandidateInput] = useState("");
   const [candidates, setCandidates] = useState<string[]>([]);
-  
+
   const router=useRouter();
 
 
@@ -24,6 +25,10 @@ export default function InitPoll() {
 
     if (durationMs <= 0) {
       return "Duration must be greater than 0";
+    }
+
+    if (candidates.length<2){
+      return `Number of option must be at least 2. Current ${candidates.length}`
     }
   }
   
@@ -45,13 +50,6 @@ export default function InitPoll() {
       }
 
       setError(null);
-
-      /* const startDate = new Date(startTime).getTime();
-      const durationMs = Number(duration) * 60 * 1000;
-      const endDate = startDate + durationMs;
-
-      const start = BigInt(Math.floor(startDate / 1000));
-      const end = BigInt(Math.floor(endDate / 1000)); */
 
       const pollId=Date.now();
       const [pollPda] = await findPollPda({
@@ -85,20 +83,13 @@ export default function InitPoll() {
       const signature = await send({ instructions });
       
       console.log("✅ init poll with signature:", signature);
+      await handleInsertPoll(pollId, pollPda, wallet.signer.address);
       router.push(`/poll/${pollPda}`);
       
     } catch (err) {
       console.error("❌ ERROR:", err);
     }
   };
-
-  /* const previewEndTime =
-    startTime && duration
-      ? new Date(
-          new Date(startTime).getTime() +
-            Number(duration) * 60 * 1000
-        ).toLocaleString()
-      : null; */
       
 
   return (
@@ -114,15 +105,7 @@ export default function InitPoll() {
           onChange={(e) => setPollDesc(e.target.value)}  
           placeholder="Enter poll description"
         />
-        {/* <div>
-          <label>Start time</label>
-          <input
-            type="datetime-local"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-          />
-        </div> */}
-
+        
         <div>
           <label>Duration (minutes)</label>
           <input
@@ -157,6 +140,7 @@ export default function InitPoll() {
         {
           candidates.map((candidate, index)=><p key={index}>{candidate}</p>)
         }
+        <br />
 
         <button type="submit">Create Poll</button>
       </form>

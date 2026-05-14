@@ -27,14 +27,15 @@ import {
   type InstructionWithAccounts,
   type InstructionWithData,
   type ReadonlyAccount,
-  type ReadonlySignerAccount,
   type ReadonlyUint8Array,
   type TransactionSigner,
   type WritableAccount,
+  type WritableSignerAccount,
 } from "@solana/kit";
-import { findCandidatePda, findPollPda } from "../pdas";
+import { findCandidatePda, findPollPda, findVoteRecordPda } from "../pdas";
 import { VOTING_PROGRAM_ADDRESS } from "../programs";
 import {
+  expectAddress,
   expectSome,
   getAccountMetaFactory,
   type ResolvedAccount,
@@ -55,13 +56,16 @@ export type VoteCandidateInstruction<
   TAccountSigner extends string | AccountMeta<string> = string,
   TAccountPoll extends string | AccountMeta<string> = string,
   TAccountCandidate extends string | AccountMeta<string> = string,
+  TAccountVoteRecord extends string | AccountMeta<string> = string,
+  TAccountSystemProgram extends string | AccountMeta<string> =
+    "11111111111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
       TAccountSigner extends string
-        ? ReadonlySignerAccount<TAccountSigner> &
+        ? WritableSignerAccount<TAccountSigner> &
             AccountSignerMeta<TAccountSigner>
         : TAccountSigner,
       TAccountPoll extends string
@@ -70,6 +74,12 @@ export type VoteCandidateInstruction<
       TAccountCandidate extends string
         ? WritableAccount<TAccountCandidate>
         : TAccountCandidate,
+      TAccountVoteRecord extends string
+        ? WritableAccount<TAccountVoteRecord>
+        : TAccountVoteRecord,
+      TAccountSystemProgram extends string
+        ? ReadonlyAccount<TAccountSystemProgram>
+        : TAccountSystemProgram,
       ...TRemainingAccounts,
     ]
   >;
@@ -118,10 +128,14 @@ export type VoteCandidateAsyncInput<
   TAccountSigner extends string = string,
   TAccountPoll extends string = string,
   TAccountCandidate extends string = string,
+  TAccountVoteRecord extends string = string,
+  TAccountSystemProgram extends string = string,
 > = {
   signer: TransactionSigner<TAccountSigner>;
   poll?: Address<TAccountPoll>;
   candidate?: Address<TAccountCandidate>;
+  voteRecord?: Address<TAccountVoteRecord>;
+  systemProgram?: Address<TAccountSystemProgram>;
   candidateId: VoteCandidateInstructionDataArgs["candidateId"];
   pollId: VoteCandidateInstructionDataArgs["pollId"];
 };
@@ -130,12 +144,16 @@ export async function getVoteCandidateInstructionAsync<
   TAccountSigner extends string,
   TAccountPoll extends string,
   TAccountCandidate extends string,
+  TAccountVoteRecord extends string,
+  TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof VOTING_PROGRAM_ADDRESS,
 >(
   input: VoteCandidateAsyncInput<
     TAccountSigner,
     TAccountPoll,
-    TAccountCandidate
+    TAccountCandidate,
+    TAccountVoteRecord,
+    TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
@@ -143,7 +161,9 @@ export async function getVoteCandidateInstructionAsync<
     TProgramAddress,
     TAccountSigner,
     TAccountPoll,
-    TAccountCandidate
+    TAccountCandidate,
+    TAccountVoteRecord,
+    TAccountSystemProgram
   >
 > {
   // Program address.
@@ -151,9 +171,11 @@ export async function getVoteCandidateInstructionAsync<
 
   // Original accounts.
   const originalAccounts = {
-    signer: { value: input.signer ?? null, isWritable: false },
+    signer: { value: input.signer ?? null, isWritable: true },
     poll: { value: input.poll ?? null, isWritable: false },
     candidate: { value: input.candidate ?? null, isWritable: true },
+    voteRecord: { value: input.voteRecord ?? null, isWritable: true },
+    systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -175,6 +197,16 @@ export async function getVoteCandidateInstructionAsync<
       candidateId: expectSome(args.candidateId),
     });
   }
+  if (!accounts.voteRecord.value) {
+    accounts.voteRecord.value = await findVoteRecordPda({
+      poll: expectAddress(accounts.poll.value),
+      signer: expectAddress(accounts.signer.value),
+    });
+  }
+  if (!accounts.systemProgram.value) {
+    accounts.systemProgram.value =
+      "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
+  }
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
@@ -182,6 +214,8 @@ export async function getVoteCandidateInstructionAsync<
       getAccountMeta(accounts.signer),
       getAccountMeta(accounts.poll),
       getAccountMeta(accounts.candidate),
+      getAccountMeta(accounts.voteRecord),
+      getAccountMeta(accounts.systemProgram),
     ],
     data: getVoteCandidateInstructionDataEncoder().encode(
       args as VoteCandidateInstructionDataArgs,
@@ -191,7 +225,9 @@ export async function getVoteCandidateInstructionAsync<
     TProgramAddress,
     TAccountSigner,
     TAccountPoll,
-    TAccountCandidate
+    TAccountCandidate,
+    TAccountVoteRecord,
+    TAccountSystemProgram
   >);
 }
 
@@ -199,10 +235,14 @@ export type VoteCandidateInput<
   TAccountSigner extends string = string,
   TAccountPoll extends string = string,
   TAccountCandidate extends string = string,
+  TAccountVoteRecord extends string = string,
+  TAccountSystemProgram extends string = string,
 > = {
   signer: TransactionSigner<TAccountSigner>;
   poll: Address<TAccountPoll>;
   candidate: Address<TAccountCandidate>;
+  voteRecord: Address<TAccountVoteRecord>;
+  systemProgram?: Address<TAccountSystemProgram>;
   candidateId: VoteCandidateInstructionDataArgs["candidateId"];
   pollId: VoteCandidateInstructionDataArgs["pollId"];
 };
@@ -211,24 +251,36 @@ export function getVoteCandidateInstruction<
   TAccountSigner extends string,
   TAccountPoll extends string,
   TAccountCandidate extends string,
+  TAccountVoteRecord extends string,
+  TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof VOTING_PROGRAM_ADDRESS,
 >(
-  input: VoteCandidateInput<TAccountSigner, TAccountPoll, TAccountCandidate>,
+  input: VoteCandidateInput<
+    TAccountSigner,
+    TAccountPoll,
+    TAccountCandidate,
+    TAccountVoteRecord,
+    TAccountSystemProgram
+  >,
   config?: { programAddress?: TProgramAddress },
 ): VoteCandidateInstruction<
   TProgramAddress,
   TAccountSigner,
   TAccountPoll,
-  TAccountCandidate
+  TAccountCandidate,
+  TAccountVoteRecord,
+  TAccountSystemProgram
 > {
   // Program address.
   const programAddress = config?.programAddress ?? VOTING_PROGRAM_ADDRESS;
 
   // Original accounts.
   const originalAccounts = {
-    signer: { value: input.signer ?? null, isWritable: false },
+    signer: { value: input.signer ?? null, isWritable: true },
     poll: { value: input.poll ?? null, isWritable: false },
     candidate: { value: input.candidate ?? null, isWritable: true },
+    voteRecord: { value: input.voteRecord ?? null, isWritable: true },
+    systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -238,12 +290,20 @@ export function getVoteCandidateInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.systemProgram.value) {
+    accounts.systemProgram.value =
+      "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
+  }
+
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
       getAccountMeta(accounts.signer),
       getAccountMeta(accounts.poll),
       getAccountMeta(accounts.candidate),
+      getAccountMeta(accounts.voteRecord),
+      getAccountMeta(accounts.systemProgram),
     ],
     data: getVoteCandidateInstructionDataEncoder().encode(
       args as VoteCandidateInstructionDataArgs,
@@ -253,7 +313,9 @@ export function getVoteCandidateInstruction<
     TProgramAddress,
     TAccountSigner,
     TAccountPoll,
-    TAccountCandidate
+    TAccountCandidate,
+    TAccountVoteRecord,
+    TAccountSystemProgram
   >);
 }
 
@@ -266,6 +328,8 @@ export type ParsedVoteCandidateInstruction<
     signer: TAccountMetas[0];
     poll: TAccountMetas[1];
     candidate: TAccountMetas[2];
+    voteRecord: TAccountMetas[3];
+    systemProgram: TAccountMetas[4];
   };
   data: VoteCandidateInstructionData;
 };
@@ -278,7 +342,7 @@ export function parseVoteCandidateInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedVoteCandidateInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 5) {
     // TODO: Coded error.
     throw new Error("Not enough accounts");
   }
@@ -294,6 +358,8 @@ export function parseVoteCandidateInstruction<
       signer: getNextAccount(),
       poll: getNextAccount(),
       candidate: getNextAccount(),
+      voteRecord: getNextAccount(),
+      systemProgram: getNextAccount(),
     },
     data: getVoteCandidateInstructionDataDecoder().decode(instruction.data),
   };

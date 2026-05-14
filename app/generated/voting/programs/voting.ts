@@ -33,6 +33,7 @@ export const VOTING_PROGRAM_ADDRESS =
 export enum VotingAccount {
   Candidate,
   Poll,
+  VoteRecord,
 }
 
 export function identifyVotingAccount(
@@ -60,6 +61,17 @@ export function identifyVotingAccount(
     )
   ) {
     return VotingAccount.Poll;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([112, 9, 123, 165, 234, 9, 157, 167]),
+      ),
+      0,
+    )
+  ) {
+    return VotingAccount.VoteRecord;
   }
   throw new Error(
     "The provided account could not be identified as a voting account.",

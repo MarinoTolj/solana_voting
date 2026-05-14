@@ -8,3 +8,4 @@
 
 export * from "./candidate";
 export * from "./poll";
+export * from "./voteRecord";

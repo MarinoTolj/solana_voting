@@ -14,6 +14,8 @@ import { ClusterSelect } from "./components/cluster-select";
 import { WalletButton } from "./components/wallet-button";
 import { useCluster } from "./components/cluster-context";
 import InitPoll from "./components/init-poll";
+import Link from "next/link";
+
 
 export default function Home() {
   const { wallet, status } = useWallet();
@@ -260,7 +262,9 @@ export default function Home() {
                 </p>
               </section>
             )}
-            <InitPoll/>
+            <Link href="/poll/create">Create Poll</Link>
+            <br />
+            <Link href="/polls">See all polls</Link>
           </div>
         </main>
       </div>
