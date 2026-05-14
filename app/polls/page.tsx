@@ -22,6 +22,18 @@ export default async function Polls() {
             {poll.pda}
           </Link>
           {' '}created by: {poll.created_by}
+          Result:
+          {
+            poll.results==null
+            ?<div>Voting has not yet ended</div>
+            :( 
+              Array.from({ length: Number(poll.results.results.length) }).map((_, i) => (
+                <p key={i}>{poll.results.results[i].candidateName}, votes:{poll.results.results[i].votes}</p>
+              ))
+            )
+
+          }
+          
         </li>
       ))}
     </ul>

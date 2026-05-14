@@ -1,16 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Address, address, createSolanaRpc, isAddress } from "@solana/kit";
+import { Address, createSolanaRpc, isAddress } from "@solana/kit";
 
 import {
-  findPollPda,
-  type PollSeeds,
-} from "../generated/voting/pdas/poll";
-
-import {
-  CandidateSeeds,
+  fetchCandidate,
   fetchPoll,
+  findCandidatePda,
   getStartPollInstructionAsync,
   type Poll,
 } from "../generated/voting";
@@ -18,7 +14,7 @@ import { CandidateCard } from "./candidate-card";
 import { Countdown } from "./countdown";
 import { useWallet } from "../lib/wallet/context";
 import { useSendTransaction } from "../lib/hooks/use-send-transaction";
-import { start } from "repl";
+import SavePollResults, { PollResult } from "../utils/save-poll";
 
 const rpc = createSolanaRpc(
   "https://api.devnet.solana.com"
@@ -46,7 +42,7 @@ export function PollCard({ pda }:{pda:string}) {
   useEffect(() => {
     if (!poll) return;
 
-    function update() {
+    async function update() {
 
       if (!poll) return;
 
@@ -72,6 +68,7 @@ export function PollCard({ pda }:{pda:string}) {
 
       if (now >= end) {
         setStatus("ENDED");
+        await savePoll();
         setRemaining(0);
         return;
       }
@@ -133,6 +130,39 @@ export function PollCard({ pda }:{pda:string}) {
     
     console.log("✅ start poll with signature:", signature);
     await loadPoll();
+  }
+
+  async function savePoll(){
+    try {
+        if (poll==null) return;
+
+        const pollResult:PollResult={
+          totalVotes: 0,
+          results: []
+        }
+
+        for (let i=0;i<poll.candidateAmount;i++){
+          const [candidatePda] = await findCandidatePda({
+            pollId:poll.pollId,
+            candidateId:i,
+          });
+  
+          const account = await fetchCandidate(
+            rpc,
+            candidatePda
+          );
+          pollResult.totalVotes+=Number(account.data.candidateVotes);
+          pollResult.results.push({
+            candidateId: i,
+            votes: Number(account.data.candidateVotes),
+            candidateName: account.data.candidateName
+          })
+
+        }
+        await SavePollResults(pollResult, pollPda);
+    } catch (err) {
+      console.error(err);
+    }
   }
   
   async function loadPoll() {
