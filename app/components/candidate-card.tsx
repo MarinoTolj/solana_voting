@@ -27,9 +27,10 @@ const rpc = createSolanaRpc(
 type Props = {
   seeds:CandidateSeeds;
   startPoll:boolean;
+  pollId:bigint;
 };
 
-export function CandidateCard({ seeds, startPoll }: Props) {
+export function CandidateCard({ seeds, startPoll, pollId }: Props) {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
   const wallet = useWallet();
@@ -41,7 +42,7 @@ export function CandidateCard({ seeds, startPoll }: Props) {
     async function loadPoll() {
       try {
         const [candidatePda] = await findCandidatePda({
-          pollId:seeds.pollId,
+          poll:seeds.poll,
           candidateId:seeds.candidateId,
         });
 
@@ -83,7 +84,7 @@ export function CandidateCard({ seeds, startPoll }: Props) {
           const instruction = await getVoteCandidateInstructionAsync({
             signer: wallet.signer,
             candidateId:seeds.candidateId,
-            pollId:seeds.pollId,
+            pollId,
           });
           console.log({instruction});
           const signature = await send({ instructions: [instruction] });
@@ -108,7 +109,6 @@ export function CandidateCard({ seeds, startPoll }: Props) {
     <div>
       <p>Name: {candidate.candidateName}</p>
       <p>Votes: {candidate.candidateVotes}</p>
-      <p>SP: {startPoll}</p>
       <button onClick={handleVote} disabled={!startPoll}>
         Vote
       </button>

@@ -6,6 +6,8 @@
  * @see https://github.com/codama-idl/codama
  */
 
+export * from "./closeCandidate";
+export * from "./closePoll";
 export * from "./initializeCandidate";
 export * from "./initializePoll";
 export * from "./startPoll";

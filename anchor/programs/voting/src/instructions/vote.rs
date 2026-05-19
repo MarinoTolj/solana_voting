@@ -27,7 +27,7 @@ pub fn vote(ctx: Context<Vote>) -> Result<()> {
 }
 
 #[derive(Accounts)]
-#[instruction(candidate_id:u64,poll_id:u64)]
+#[instruction(candidate_id:u8,poll_id:u64)]
 pub struct Vote<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -42,7 +42,7 @@ pub struct Vote<'info> {
         mut,
         seeds = [
             b"candidate",
-            poll_id.to_le_bytes().as_ref(),
+            poll.key().as_ref(),
             candidate_id.to_le_bytes().as_ref()
         ],
         bump

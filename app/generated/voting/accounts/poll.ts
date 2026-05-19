@@ -17,6 +17,8 @@ import {
   fetchEncodedAccounts,
   fixDecoderSize,
   fixEncoderSize,
+  getAddressDecoder,
+  getAddressEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getI64Decoder,
@@ -29,6 +31,8 @@ import {
   getU32Encoder,
   getU64Decoder,
   getU64Encoder,
+  getU8Decoder,
+  getU8Encoder,
   getUtf8Decoder,
   getUtf8Encoder,
   transformEncoder,
@@ -57,23 +61,29 @@ export function getPollDiscriminatorBytes() {
 
 export type Poll = {
   discriminator: ReadonlyUint8Array;
+  authority: Address;
   pollId: bigint;
   name: string;
   description: string;
   startedAt: Option<bigint>;
   /** In seconds */
   duration: bigint;
-  candidateAmount: bigint;
+  candidateAmount: number;
+  /** Number of unclosed candidates. Can not close poll if all candidates accounts are still active. */
+  activeCandidates: number;
 };
 
 export type PollArgs = {
+  authority: Address;
   pollId: number | bigint;
   name: string;
   description: string;
   startedAt: OptionOrNullable<number | bigint>;
   /** In seconds */
   duration: number | bigint;
-  candidateAmount: number | bigint;
+  candidateAmount: number;
+  /** Number of unclosed candidates. Can not close poll if all candidates accounts are still active. */
+  activeCandidates: number;
 };
 
 /** Gets the encoder for {@link PollArgs} account data. */
@@ -81,12 +91,14 @@ export function getPollEncoder(): Encoder<PollArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
+      ["authority", getAddressEncoder()],
       ["pollId", getU64Encoder()],
       ["name", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
       ["description", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
       ["startedAt", getOptionEncoder(getI64Encoder())],
       ["duration", getU64Encoder()],
-      ["candidateAmount", getU64Encoder()],
+      ["candidateAmount", getU8Encoder()],
+      ["activeCandidates", getU8Encoder()],
     ]),
     (value) => ({ ...value, discriminator: POLL_DISCRIMINATOR }),
   );
@@ -96,12 +108,14 @@ export function getPollEncoder(): Encoder<PollArgs> {
 export function getPollDecoder(): Decoder<Poll> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
+    ["authority", getAddressDecoder()],
     ["pollId", getU64Decoder()],
     ["name", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
     ["description", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
     ["startedAt", getOptionDecoder(getI64Decoder())],
     ["duration", getU64Decoder()],
-    ["candidateAmount", getU64Decoder()],
+    ["candidateAmount", getU8Decoder()],
+    ["activeCandidates", getU8Decoder()],
   ]);
 }
 

@@ -25,22 +25,33 @@ pub mod voting {
         name: String,
         description: String,
     ) -> Result<()> {
-        init_poll(ctx, poll_id, duration, name, description)
+        instructions::init_poll(ctx, poll_id, duration, name, description)
     }
     pub fn initialize_candidate(
         ctx: Context<InitializeCandidate>,
-        candidate_id: u64,
+        candidate_id: u8,
         _poll_id: u64,
         candidate_name: String,
     ) -> Result<()> {
-        init_candidate(ctx, candidate_id, candidate_name)
+        instructions::init_candidate(ctx, candidate_id, candidate_name)
     }
 
     pub fn start_poll(ctx: Context<StartPoll>, _poll_id: u64) -> Result<()> {
-        start(ctx)
+        instructions::start(ctx)
     }
 
-    pub fn vote_candidate(ctx: Context<Vote>, _candidate_id: u64, _poll_id: u64) -> Result<()> {
-        vote(ctx)
+    pub fn vote_candidate(ctx: Context<Vote>, _candidate_id: u8, _poll_id: u64) -> Result<()> {
+        instructions::vote(ctx)
+    }
+
+    pub fn close_candidate(
+        ctx: Context<CloseCandidate>,
+        _candidate_id: u8,
+        _poll_id: u64,
+    ) -> Result<()> {
+        instructions::close_candidate(ctx)
+    }
+    pub fn close_poll(ctx: Context<ClosePoll>, _poll_id: u64) -> Result<()> {
+        instructions::close_poll(ctx)
     }
 }

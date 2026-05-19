@@ -1,18 +1,10 @@
 import { cookies } from 'next/headers'
 import { createClient } from '../utils/supabase/server'
 import Link from 'next/link';
+import FetchPolls from '../utils/fetch-polls';
 
 export default async function Polls() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
-
-  const { data: polls, error } = await supabase
-    .from('polls')
-    .select('*')
-
-  if (error) {
-    return <pre>{JSON.stringify(error, null, 2)}</pre>;
-  }
+  const polls = await FetchPolls();
 
   return (
     <ul>

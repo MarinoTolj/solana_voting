@@ -186,12 +186,14 @@ mod tests {
         let (poll_pda, _) = get_poll_pda(poll_id);
 
         let expected = Poll {
+            authority: ctx.user.pubkey(),
             poll_id,
             name: "Test name".into(),
             description: "Test desc".into(),
             candidate_amount: 0,
             started_at: None,
             duration: 0,
+            active_candidates: 0,
         };
 
         ctx.send_ix(create_poll_ix(

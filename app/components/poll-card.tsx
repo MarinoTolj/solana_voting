@@ -7,6 +7,8 @@ import {
   fetchCandidate,
   fetchPoll,
   findCandidatePda,
+  getCloseCandidateInstructionAsync,
+  getClosePollInstructionAsync,
   getStartPollInstructionAsync,
   type Poll,
 } from "../generated/voting";
@@ -15,6 +17,8 @@ import { Countdown } from "./countdown";
 import { useWallet } from "../lib/wallet/context";
 import { useSendTransaction } from "../lib/hooks/use-send-transaction";
 import SavePollResults, { PollResult } from "../utils/save-poll";
+import ClosePoll from "../utils/close-poll";
+import { ClosedPoll } from "./closed-poll";
 
 const rpc = createSolanaRpc(
   "https://api.devnet.solana.com"
@@ -143,7 +147,7 @@ export function PollCard({ pda }:{pda:string}) {
 
         for (let i=0;i<poll.candidateAmount;i++){
           const [candidatePda] = await findCandidatePda({
-            pollId:poll.pollId,
+            poll:pollPda,
             candidateId:i,
           });
   
@@ -164,6 +168,29 @@ export function PollCard({ pda }:{pda:string}) {
       console.error(err);
     }
   }
+
+  async function handleClosePoll() {
+    if (poll==null || wallet.signer==null) return;
+    const instructions=[];
+    for (let i=0;i<poll.candidateAmount;i++){
+          const instruction=await getCloseCandidateInstructionAsync({
+            authority: wallet.signer,
+            candidateId: i,
+            pollId: poll.pollId
+          });
+          instructions.push(instruction);
+    }
+    const instruction = await getClosePollInstructionAsync({
+      authority: wallet.signer,
+      pollId: poll.pollId
+    });
+
+    instructions.push(instruction);
+    const signature = await send({ instructions });
+    console.log("✅ close poll with signature:", signature);
+    await ClosePoll(pollPda);
+
+  }
   
   async function loadPoll() {
     const account = await fetchPoll(rpc, pollPda);
@@ -179,7 +206,7 @@ export function PollCard({ pda }:{pda:string}) {
   }
 
   if (!poll) {
-    return <div>Poll not found</div>;
+    return <ClosedPoll pda={pda}/>;
   }
   
   return (
@@ -214,15 +241,18 @@ export function PollCard({ pda }:{pda:string}) {
           Array.from({ length: Number(poll.candidateAmount) }).map((_, i) => (
             <CandidateCard 
               seeds={{
-                  pollId: poll.pollId,
+                  poll: pollPda,
                   candidateId: i
                 }}  
                 startPoll={status === "ACTIVE"}
+                pollId={poll.pollId}
                 key={i}
             />
           ))
    
       }
+
+      <button onClick={handleClosePoll}>Close poll</button>
     </div>
   );
 }

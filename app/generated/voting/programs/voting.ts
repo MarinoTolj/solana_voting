@@ -17,10 +17,14 @@ import {
   type ReadonlyUint8Array,
 } from "@solana/kit";
 import {
+  parseCloseCandidateInstruction,
+  parseClosePollInstruction,
   parseInitializeCandidateInstruction,
   parseInitializePollInstruction,
   parseStartPollInstruction,
   parseVoteCandidateInstruction,
+  type ParsedCloseCandidateInstruction,
+  type ParsedClosePollInstruction,
   type ParsedInitializeCandidateInstruction,
   type ParsedInitializePollInstruction,
   type ParsedStartPollInstruction,
@@ -79,6 +83,8 @@ export function identifyVotingAccount(
 }
 
 export enum VotingInstruction {
+  CloseCandidate,
+  ClosePoll,
   InitializeCandidate,
   InitializePoll,
   StartPoll,
@@ -89,6 +95,28 @@ export function identifyVotingInstruction(
   instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
 ): VotingInstruction {
   const data = "data" in instruction ? instruction.data : instruction;
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([241, 131, 80, 29, 254, 200, 56, 131]),
+      ),
+      0,
+    )
+  ) {
+    return VotingInstruction.CloseCandidate;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([139, 213, 162, 65, 172, 150, 123, 67]),
+      ),
+      0,
+    )
+  ) {
+    return VotingInstruction.ClosePoll;
+  }
   if (
     containsBytes(
       data,
@@ -142,6 +170,12 @@ export type ParsedVotingInstruction<
   TProgram extends string = "EjwrYRuuUGazBKmhSAecnBPoDsb3U24Wrrom5fVZagis",
 > =
   | ({
+      instructionType: VotingInstruction.CloseCandidate;
+    } & ParsedCloseCandidateInstruction<TProgram>)
+  | ({
+      instructionType: VotingInstruction.ClosePoll;
+    } & ParsedClosePollInstruction<TProgram>)
+  | ({
       instructionType: VotingInstruction.InitializeCandidate;
     } & ParsedInitializeCandidateInstruction<TProgram>)
   | ({
@@ -159,6 +193,20 @@ export function parseVotingInstruction<TProgram extends string>(
 ): ParsedVotingInstruction<TProgram> {
   const instructionType = identifyVotingInstruction(instruction);
   switch (instructionType) {
+    case VotingInstruction.CloseCandidate: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: VotingInstruction.CloseCandidate,
+        ...parseCloseCandidateInstruction(instruction),
+      };
+    }
+    case VotingInstruction.ClosePoll: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: VotingInstruction.ClosePoll,
+        ...parseClosePollInstruction(instruction),
+      };
+    }
     case VotingInstruction.InitializeCandidate: {
       assertIsInstructionWithAccounts(instruction);
       return {

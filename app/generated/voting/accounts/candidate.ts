@@ -17,6 +17,8 @@ import {
   fetchEncodedAccounts,
   fixDecoderSize,
   fixEncoderSize,
+  getAddressDecoder,
+  getAddressEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getStructDecoder,
@@ -25,6 +27,8 @@ import {
   getU32Encoder,
   getU64Decoder,
   getU64Encoder,
+  getU8Decoder,
+  getU8Encoder,
   getUtf8Decoder,
   getUtf8Encoder,
   transformEncoder,
@@ -51,15 +55,17 @@ export function getCandidateDiscriminatorBytes() {
 
 export type Candidate = {
   discriminator: ReadonlyUint8Array;
+  poll: Address;
   candidateName: string;
   candidateVotes: bigint;
-  id: bigint;
+  id: number;
 };
 
 export type CandidateArgs = {
+  poll: Address;
   candidateName: string;
   candidateVotes: number | bigint;
-  id: number | bigint;
+  id: number;
 };
 
 /** Gets the encoder for {@link CandidateArgs} account data. */
@@ -67,12 +73,13 @@ export function getCandidateEncoder(): Encoder<CandidateArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
+      ["poll", getAddressEncoder()],
       [
         "candidateName",
         addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder()),
       ],
       ["candidateVotes", getU64Encoder()],
-      ["id", getU64Encoder()],
+      ["id", getU8Encoder()],
     ]),
     (value) => ({ ...value, discriminator: CANDIDATE_DISCRIMINATOR }),
   );
@@ -82,9 +89,10 @@ export function getCandidateEncoder(): Encoder<CandidateArgs> {
 export function getCandidateDecoder(): Decoder<Candidate> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
+    ["poll", getAddressDecoder()],
     ["candidateName", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
     ["candidateVotes", getU64Decoder()],
-    ["id", getU64Decoder()],
+    ["id", getU8Decoder()],
   ]);
 }
 

@@ -10,11 +10,14 @@ pub fn init_poll(
     description: String,
 ) -> Result<()> {
     let poll = &mut ctx.accounts.poll;
+    poll.authority = ctx.accounts.signer.key();
+
     poll.poll_id = poll_id;
     poll.description = description;
     poll.name = name;
     poll.duration = duration;
     poll.candidate_amount = 0;
+    poll.active_candidates = 0;
     poll.started_at = None;
     Ok(())
 }

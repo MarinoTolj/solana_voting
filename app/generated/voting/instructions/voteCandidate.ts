@@ -16,6 +16,8 @@ import {
   getStructEncoder,
   getU64Decoder,
   getU64Encoder,
+  getU8Decoder,
+  getU8Encoder,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -86,12 +88,12 @@ export type VoteCandidateInstruction<
 
 export type VoteCandidateInstructionData = {
   discriminator: ReadonlyUint8Array;
-  candidateId: bigint;
+  candidateId: number;
   pollId: bigint;
 };
 
 export type VoteCandidateInstructionDataArgs = {
-  candidateId: number | bigint;
+  candidateId: number;
   pollId: number | bigint;
 };
 
@@ -99,7 +101,7 @@ export function getVoteCandidateInstructionDataEncoder(): FixedSizeEncoder<VoteC
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
-      ["candidateId", getU64Encoder()],
+      ["candidateId", getU8Encoder()],
       ["pollId", getU64Encoder()],
     ]),
     (value) => ({ ...value, discriminator: VOTE_CANDIDATE_DISCRIMINATOR }),
@@ -109,7 +111,7 @@ export function getVoteCandidateInstructionDataEncoder(): FixedSizeEncoder<VoteC
 export function getVoteCandidateInstructionDataDecoder(): FixedSizeDecoder<VoteCandidateInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
-    ["candidateId", getU64Decoder()],
+    ["candidateId", getU8Decoder()],
     ["pollId", getU64Decoder()],
   ]);
 }
@@ -193,7 +195,7 @@ export async function getVoteCandidateInstructionAsync<
   }
   if (!accounts.candidate.value) {
     accounts.candidate.value = await findCandidatePda({
-      pollId: expectSome(args.pollId),
+      poll: expectAddress(accounts.poll.value),
       candidateId: expectSome(args.candidateId),
     });
   }
