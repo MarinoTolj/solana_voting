@@ -12,10 +12,6 @@ export default async function PollPage({
   const { pda } = await params;
 
   return (
-    <div>
-      <h1>Poll Page</h1>
-      <PollCard pda={pda}/>
-      
-    </div>
+    <PollCard pda={pda}/>
   );
 }

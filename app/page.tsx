@@ -79,7 +79,7 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
-      <GridBackground />
+      {/* <GridBackground /> */}
 
       <div className="relative z-10">
         {/* Header */}
@@ -262,9 +262,17 @@ export default function Home() {
                 </p>
               </section>
             )}
-            <Link href="/poll/create">Create Poll</Link>
-            <br />
-            <Link href="/polls">See all polls</Link>
+            <section className="space-y-4">
+              <h2 className="text-xl font-semibold text-foreground">Polls</h2>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+                <Link href="/poll/create" className="rounded-lg border border-border bg-card px-4 py-3 text-center font-medium text-foreground hover:bg-secondary transition">
+                  Create Poll
+                </Link>
+                <Link href="/polls" className="rounded-lg border border-border bg-card px-4 py-3 text-center font-medium text-foreground hover:bg-secondary transition">
+                  View All Polls
+                </Link>
+              </div>
+            </section>
           </div>
         </main>
       </div>

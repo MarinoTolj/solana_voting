@@ -1,7 +1,7 @@
 import { Address } from "@solana/kit";
 import { createClient } from "./supabase/client";
 
-export default async function handleInsertPoll(pollId:number, pollPda:Address<string>, wallet_address:Address<string>){
+export default async function handleInsertPoll(pollId:number, pollPda:Address<string>, wallet_address:Address<string>, name:string, description:string){
     const supabase = createClient();
 
     const { data, error } = await supabase
@@ -9,7 +9,9 @@ export default async function handleInsertPoll(pollId:number, pollPda:Address<st
       .insert({
         poll_id:pollId,
         pda:pollPda,
-        created_by:wallet_address
+        created_by:wallet_address,
+        name,
+        description,
       })
       .select();
 

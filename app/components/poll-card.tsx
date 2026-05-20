@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Address, createSolanaRpc, isAddress } from "@solana/kit";
 
 import {
@@ -43,6 +43,51 @@ export function PollCard({ pda }:{pda:string}) {
 
   const pollPda=pda as Address<typeof pda>;
 
+  const loadPoll = useCallback(async () => {
+    try {
+      const account = await fetchPoll(rpc, pollPda);
+      setPoll(account.data);
+    } catch (err) {
+      console.error(err);
+      setPoll(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [pollPda]);
+
+  const savePoll=useCallback(async ()=>{
+    try {
+        if (poll==null) return;
+
+        const pollResult:PollResult={
+          totalVotes: 0,
+          results: []
+        }
+
+        for (let i=0;i<poll.candidateAmount;i++){
+          const [candidatePda] = await findCandidatePda({
+            poll:pollPda,
+            candidateId:i,
+          });
+  
+          const account = await fetchCandidate(
+            rpc,
+            candidatePda
+          );
+          pollResult.totalVotes+=Number(account.data.candidateVotes);
+          pollResult.results.push({
+            candidateId: i,
+            votes: Number(account.data.candidateVotes),
+            candidateName: account.data.candidateName
+          })
+
+        }
+        await SavePollResults(pollResult, pollPda);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [poll, pollPda]);
+
   useEffect(() => {
     if (!poll) return;
 
@@ -74,6 +119,7 @@ export function PollCard({ pda }:{pda:string}) {
         setStatus("ENDED");
         await savePoll();
         setRemaining(0);
+        clearInterval(interval);
         return;
       }
 
@@ -89,37 +135,11 @@ export function PollCard({ pda }:{pda:string}) {
     const interval = setInterval(update, 1000);
 
     return () => clearInterval(interval);
-    }, [poll]);
+    }, [poll, savePoll]);
 
   useEffect(() => {
-    let mounted = true;
-
-    async function loadPoll() {
-      try {
-
-        const account = await fetchPoll(
-          rpc,
-          pollPda
-        );
-
-        if (mounted) {
-          setPoll(account.data);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    }
-
     loadPoll();
-
-    return () => {
-      mounted = false;
-    };
-}, [pda, pollPda]);
+  }, [loadPoll]);
 
   async function handleStartPoll(){
     if (!wallet.signer || !poll){
@@ -136,38 +156,8 @@ export function PollCard({ pda }:{pda:string}) {
     await loadPoll();
   }
 
-  async function savePoll(){
-    try {
-        if (poll==null) return;
-
-        const pollResult:PollResult={
-          totalVotes: 0,
-          results: []
-        }
-
-        for (let i=0;i<poll.candidateAmount;i++){
-          const [candidatePda] = await findCandidatePda({
-            poll:pollPda,
-            candidateId:i,
-          });
   
-          const account = await fetchCandidate(
-            rpc,
-            candidatePda
-          );
-          pollResult.totalVotes+=Number(account.data.candidateVotes);
-          pollResult.results.push({
-            candidateId: i,
-            votes: Number(account.data.candidateVotes),
-            candidateName: account.data.candidateName
-          })
-
-        }
-        await SavePollResults(pollResult, pollPda);
-    } catch (err) {
-      console.error(err);
-    }
-  }
+  
 
   async function handleClosePoll() {
     if (poll==null || wallet.signer==null) return;
@@ -186,73 +176,74 @@ export function PollCard({ pda }:{pda:string}) {
     });
 
     instructions.push(instruction);
+    if (status==="NOT_STARTED"){
+      await savePoll();
+    }
     const signature = await send({ instructions });
     console.log("✅ close poll with signature:", signature);
     await ClosePoll(pollPda);
+    await loadPoll();
 
-  }
-  
-  async function loadPoll() {
-    const account = await fetchPoll(rpc, pollPda);
-    setPoll(account.data);
   }
 
   if (!isAddress(pda)){
-    return <div>Not a address: {pda}</div>
+    return <div className="px-6 py-8 text-center text-destructive">Invalid address: {pda}</div>
   }
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <div className="px-6 py-8 text-center text-muted">Loading poll...</div>;
   }
 
   if (!poll) {
     return <ClosedPoll pda={pda}/>;
   }
-  
+
   return (
-    <div>
-      <p>Title: {poll.name}</p> 
-      <p>Desc: {poll.description}</p>
-      <p>
-        Number of options:
-        {poll.candidateAmount.toString()}
-      </p>
-      
-      {
-        status === "NOT_STARTED" && (
-          <button onClick={handleStartPoll}>
-            Start poll
+    <div className="mx-auto max-w-2xl px-6 py-8">
+      <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">{poll.name}</h1>
+          <p className="mt-2 text-foreground/70">{poll.description}</p>
+        </div>
+
+        <div className="flex items-center justify-between text-sm text-muted">
+          <span>{poll.candidateAmount.toString()} option(s)</span>
+          {status === "ACTIVE" && <Countdown remaining={remaining} />}
+          {status === "ENDED" && <span className="text-destructive">Voting has ended</span>}
+        </div>
+
+        {status === "NOT_STARTED" && (
+          <button
+            onClick={handleStartPoll}
+            disabled={isSending}
+            className="w-full px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition"
+          >
+            Start Poll
           </button>
-        )
-      }
+        )}
 
-      {
-        status === "ACTIVE" && (
-          <Countdown remaining={remaining} />
-        )
-      }
-      {
-        status === "ENDED" && (
-          <div>Voting has ended</div>
-        )
-      }
-      
-      { 
-          Array.from({ length: Number(poll.candidateAmount) }).map((_, i) => (
-            <CandidateCard 
+        <div className="space-y-3 pt-4">
+          {Array.from({ length: Number(poll.candidateAmount) }).map((_, i) => (
+            <CandidateCard
+              key={i}
               seeds={{
-                  poll: pollPda,
-                  candidateId: i
-                }}  
-                startPoll={status === "ACTIVE"}
-                pollId={poll.pollId}
-                key={i}
+                poll: pollPda,
+                candidateId: i,
+              }}
+              startPoll={status === "ACTIVE"}
+              pollId={poll.pollId}
             />
-          ))
-   
-      }
+          ))}
+        </div>
 
-      <button onClick={handleClosePoll}>Close poll</button>
+        <button
+          onClick={handleClosePoll}
+          disabled={isSending}
+          className="w-full mt-6 px-4 py-2 rounded-lg bg-destructive text-primary-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition"
+        >
+          Close Poll
+        </button>
+      </div>
     </div>
   );
 }
