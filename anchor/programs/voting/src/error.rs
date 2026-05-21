@@ -4,12 +4,16 @@ use anchor_lang::error_code;
 pub enum PollError {
     InvalidCandidateId,
     CannotInitCandidate,
+    #[msg("Can not start poll with less than two candidates")]
+    CannotStartPoll,
     #[msg("Can not close candidate during active poll")]
     CannotCloseCandidate,
     #[msg("Can not close poll during active poll")]
     CannotClosePoll,
+    #[msg("Can only end active poll")]
+    CannotEndPoll,
     #[msg("Can not close poll with active canidates")]
-    ActiveCanidates,
+    ActiveCandidates,
     #[msg("Tried to close more candidates than there is in poll")]
     InvalidCandidateAmount,
     #[msg("Poll is not in draft")]

@@ -18,26 +18,32 @@ import { VOTING_PROGRAM_ADDRESS } from "../programs";
 export const VOTING_ERROR__INVALID_CANDIDATE_ID = 0x1770; // 6000
 /** CannotInitCandidate:  */
 export const VOTING_ERROR__CANNOT_INIT_CANDIDATE = 0x1771; // 6001
+/** CannotStartPoll: Can not start poll with less than two candidates */
+export const VOTING_ERROR__CANNOT_START_POLL = 0x1772; // 6002
 /** CannotCloseCandidate: Can not close candidate during active poll */
-export const VOTING_ERROR__CANNOT_CLOSE_CANDIDATE = 0x1772; // 6002
+export const VOTING_ERROR__CANNOT_CLOSE_CANDIDATE = 0x1773; // 6003
 /** CannotClosePoll: Can not close poll during active poll */
-export const VOTING_ERROR__CANNOT_CLOSE_POLL = 0x1773; // 6003
-/** ActiveCanidates: Can not close poll with active canidates */
-export const VOTING_ERROR__ACTIVE_CANIDATES = 0x1774; // 6004
+export const VOTING_ERROR__CANNOT_CLOSE_POLL = 0x1774; // 6004
+/** CannotEndPoll: Can only end active poll */
+export const VOTING_ERROR__CANNOT_END_POLL = 0x1775; // 6005
+/** ActiveCandidates: Can not close poll with active canidates */
+export const VOTING_ERROR__ACTIVE_CANDIDATES = 0x1776; // 6006
 /** InvalidCandidateAmount: Tried to close more candidates than there is in poll */
-export const VOTING_ERROR__INVALID_CANDIDATE_AMOUNT = 0x1775; // 6005
+export const VOTING_ERROR__INVALID_CANDIDATE_AMOUNT = 0x1777; // 6007
 /** PollNotDraft: Poll is not in draft */
-export const VOTING_ERROR__POLL_NOT_DRAFT = 0x1776; // 6006
+export const VOTING_ERROR__POLL_NOT_DRAFT = 0x1778; // 6008
 /** PollNotActive: Poll is not active */
-export const VOTING_ERROR__POLL_NOT_ACTIVE = 0x1777; // 6007
+export const VOTING_ERROR__POLL_NOT_ACTIVE = 0x1779; // 6009
 /** PollEnded: Poll has ended */
-export const VOTING_ERROR__POLL_ENDED = 0x1778; // 6008
+export const VOTING_ERROR__POLL_ENDED = 0x177a; // 6010
 
 export type VotingError =
-  | typeof VOTING_ERROR__ACTIVE_CANIDATES
+  | typeof VOTING_ERROR__ACTIVE_CANDIDATES
   | typeof VOTING_ERROR__CANNOT_CLOSE_CANDIDATE
   | typeof VOTING_ERROR__CANNOT_CLOSE_POLL
+  | typeof VOTING_ERROR__CANNOT_END_POLL
   | typeof VOTING_ERROR__CANNOT_INIT_CANDIDATE
+  | typeof VOTING_ERROR__CANNOT_START_POLL
   | typeof VOTING_ERROR__INVALID_CANDIDATE_AMOUNT
   | typeof VOTING_ERROR__INVALID_CANDIDATE_ID
   | typeof VOTING_ERROR__POLL_ENDED
@@ -47,10 +53,12 @@ export type VotingError =
 let votingErrorMessages: Record<VotingError, string> | undefined;
 if (process.env.NODE_ENV !== "production") {
   votingErrorMessages = {
-    [VOTING_ERROR__ACTIVE_CANIDATES]: `Can not close poll with active canidates`,
+    [VOTING_ERROR__ACTIVE_CANDIDATES]: `Can not close poll with active canidates`,
     [VOTING_ERROR__CANNOT_CLOSE_CANDIDATE]: `Can not close candidate during active poll`,
     [VOTING_ERROR__CANNOT_CLOSE_POLL]: `Can not close poll during active poll`,
+    [VOTING_ERROR__CANNOT_END_POLL]: `Can only end active poll`,
     [VOTING_ERROR__CANNOT_INIT_CANDIDATE]: ``,
+    [VOTING_ERROR__CANNOT_START_POLL]: `Can not start poll with less than two candidates`,
     [VOTING_ERROR__INVALID_CANDIDATE_AMOUNT]: `Tried to close more candidates than there is in poll`,
     [VOTING_ERROR__INVALID_CANDIDATE_ID]: ``,
     [VOTING_ERROR__POLL_ENDED]: `Poll has ended`,

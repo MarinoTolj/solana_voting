@@ -54,4 +54,7 @@ pub mod voting {
     pub fn close_poll(ctx: Context<ClosePoll>, _poll_id: u64) -> Result<()> {
         instructions::close_poll(ctx)
     }
+    pub fn end_poll(ctx: Context<EndPoll>, _poll_id: u64) -> Result<()> {
+        instructions::end_poll(ctx)
+    }
 }

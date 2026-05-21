@@ -19,12 +19,14 @@ import {
 import {
   parseCloseCandidateInstruction,
   parseClosePollInstruction,
+  parseEndPollInstruction,
   parseInitializeCandidateInstruction,
   parseInitializePollInstruction,
   parseStartPollInstruction,
   parseVoteCandidateInstruction,
   type ParsedCloseCandidateInstruction,
   type ParsedClosePollInstruction,
+  type ParsedEndPollInstruction,
   type ParsedInitializeCandidateInstruction,
   type ParsedInitializePollInstruction,
   type ParsedStartPollInstruction,
@@ -85,6 +87,7 @@ export function identifyVotingAccount(
 export enum VotingInstruction {
   CloseCandidate,
   ClosePoll,
+  EndPoll,
   InitializeCandidate,
   InitializePoll,
   StartPoll,
@@ -116,6 +119,17 @@ export function identifyVotingInstruction(
     )
   ) {
     return VotingInstruction.ClosePoll;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([203, 232, 109, 145, 93, 37, 203, 68]),
+      ),
+      0,
+    )
+  ) {
+    return VotingInstruction.EndPoll;
   }
   if (
     containsBytes(
@@ -176,6 +190,9 @@ export type ParsedVotingInstruction<
       instructionType: VotingInstruction.ClosePoll;
     } & ParsedClosePollInstruction<TProgram>)
   | ({
+      instructionType: VotingInstruction.EndPoll;
+    } & ParsedEndPollInstruction<TProgram>)
+  | ({
       instructionType: VotingInstruction.InitializeCandidate;
     } & ParsedInitializeCandidateInstruction<TProgram>)
   | ({
@@ -205,6 +222,13 @@ export function parseVotingInstruction<TProgram extends string>(
       return {
         instructionType: VotingInstruction.ClosePoll,
         ...parseClosePollInstruction(instruction),
+      };
+    }
+    case VotingInstruction.EndPoll: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: VotingInstruction.EndPoll,
+        ...parseEndPollInstruction(instruction),
       };
     }
     case VotingInstruction.InitializeCandidate: {

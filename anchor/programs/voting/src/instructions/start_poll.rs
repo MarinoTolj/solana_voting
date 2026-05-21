@@ -6,6 +6,8 @@ pub fn start(ctx: Context<StartPoll>) -> Result<()> {
     let poll = &mut ctx.accounts.poll;
 
     require!(poll.started_at.is_none(), PollError::PollNotDraft);
+    require!(poll.candidate_amount > 1, PollError::CannotStartPoll);
+    
     poll.started_at = Some(Clock::get()?.unix_timestamp);
 
     Ok(())

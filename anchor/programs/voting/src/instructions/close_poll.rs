@@ -8,14 +8,14 @@ use crate::{
 pub fn close_poll(ctx: Context<ClosePoll>) -> Result<()> {
     let poll = &mut ctx.accounts.poll;
 
-    if poll.started_at.is_some() {
+    if let Some(start_time) = poll.started_at {
         let now = Clock::get()?.unix_timestamp;
-        let end_time = poll.started_at.unwrap() + poll.duration as i64;
+        let end_time = start_time + poll.duration as i64;
 
         require!(now > end_time, PollError::CannotClosePoll);
     }
 
-    require!(poll.active_candidates.eq(&0), PollError::ActiveCanidates);
+    require!(poll.active_candidates.eq(&0), PollError::ActiveCandidates);
 
     Ok(())
 }

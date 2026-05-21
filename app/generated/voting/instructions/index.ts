@@ -8,6 +8,7 @@
 
 export * from "./closeCandidate";
 export * from "./closePoll";
+export * from "./endPoll";
 export * from "./initializeCandidate";
 export * from "./initializePoll";
 export * from "./startPoll";

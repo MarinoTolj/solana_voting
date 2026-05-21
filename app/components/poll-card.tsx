@@ -9,6 +9,7 @@ import {
   findCandidatePda,
   getCloseCandidateInstructionAsync,
   getClosePollInstructionAsync,
+  getEndPollInstructionAsync,
   getStartPollInstructionAsync,
   type Poll,
 } from "../generated/voting";
@@ -157,8 +158,6 @@ export function PollCard({ pda }:{pda:string}) {
   }
 
   
-  
-
   async function handleClosePoll() {
     if (poll==null || wallet.signer==null) return;
     const instructions=[];
@@ -182,6 +181,22 @@ export function PollCard({ pda }:{pda:string}) {
     const signature = await send({ instructions });
     console.log("✅ close poll with signature:", signature);
     await ClosePoll(pollPda);
+    await loadPoll();
+
+  }
+  async function handleEndPoll() {
+    if (poll==null || wallet.signer==null) return;
+    
+    if (status!=="ACTIVE"){
+      return;
+    }
+    const instruction = await getEndPollInstructionAsync({
+      authority: wallet.signer,
+      pollId: poll.pollId
+    });
+
+    const signature = await send({ instructions:[instruction] });
+    console.log("✅ end poll with signature:", signature);
     await loadPoll();
 
   }
@@ -235,14 +250,25 @@ export function PollCard({ pda }:{pda:string}) {
             />
           ))}
         </div>
+        {status === "ACTIVE"?
+          <button
+            onClick={handleEndPoll}
+            disabled={isSending}
+            className="w-full mt-6 px-4 py-2 rounded-lg bg-destructive text-primary-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition"
+          >
+            End Poll
+          </button>:
 
-        <button
-          onClick={handleClosePoll}
-          disabled={isSending}
-          className="w-full mt-6 px-4 py-2 rounded-lg bg-destructive text-primary-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition"
-        >
-          Close Poll
-        </button>
+          <button
+            onClick={handleClosePoll}
+            disabled={isSending}
+            className="w-full mt-6 px-4 py-2 rounded-lg bg-destructive text-primary-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition"
+          >
+            Close Poll
+          </button>
+        }
+
+        
       </div>
     </div>
   );
