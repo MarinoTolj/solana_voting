@@ -1,6 +1,7 @@
+import { PollRow } from "../lib/db-table";
 import { createClient } from "./supabase/client";
 
-export default async function FetchPolls(){
+export default async function FetchPolls():Promise<PollRow[]>{
     const supabase = createClient();
 
     const { data: polls, error } = await supabase
@@ -12,5 +13,5 @@ export default async function FetchPolls(){
       throw error;
     }
 
-    return polls;
+    return polls as PollRow[];
 }

@@ -1,5 +1,5 @@
 import InitPoll from "../../components/init-poll";
 
-export default async function Create() {
-  return <InitPoll />
+export default function Create() {
+  return <InitPoll />;
 }

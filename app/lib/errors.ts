@@ -1,18 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
-  isSolanaError,
-  SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM,
+  SolanaError,
 } from "@solana/kit";
 import {
-  getvotingErrorMessage,
-  voting_ERROR__voting_ALREADY_EXISTS,
-  voting_ERROR__INVALID_AMOUNT,
-  type votingError,
+  getVotingErrorMessage,
+  votingErrorMessages,
+  type VotingError,
 } from "../generated/voting";
-
-const voting_ERROR_CODES: Record<number, votingError> = {
-  [voting_ERROR__voting_ALREADY_EXISTS]: voting_ERROR__voting_ALREADY_EXISTS,
-  [voting_ERROR__INVALID_AMOUNT]: voting_ERROR__INVALID_AMOUNT,
-};
 
 export function parseTransactionError(err: unknown): string {
   // Wallet rejection (comes from wallet-standard, not a SolanaError)
@@ -20,33 +14,30 @@ export function parseTransactionError(err: unknown): string {
     return "Transaction was rejected by the wallet.";
   }
 
-  // Anchor custom program errors — use the Codama-generated error messages
   if (
-    isSolanaError(err, SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM) &&
-    typeof err.context?.code === "number"
+    err !== null &&
+    err !== undefined &&
+    (err as any).name === "SolanaError"
   ) {
-    const votingError = voting_ERROR_CODES[err.context.code];
-    if (votingError !== undefined) {
-      return getvotingErrorMessage(votingError);
+    const solanaError = err as SolanaError;
+
+    if (solanaError.cause !== null) {
+      if (solanaError.cause?.context.code in votingErrorMessages!) {
+        return getVotingErrorMessage(
+          solanaError.cause?.context.code as VotingError
+        );
+      }
+
+      // For all other errors, kit's SolanaError already has readable messages.
+      return fromSolanaError(solanaError);
     }
   }
-
-  // For all other errors, kit's SolanaError already has readable messages.
-  // Walk the cause chain to find the deepest message.
-  const message = getDeepestMessage(err);
-  return message.length > 200 ? `${message.slice(0, 200)}...` : message;
+  return err instanceof Error ? err.message : String(err);
 }
 
-function getDeepestMessage(err: unknown): string {
-  let deepest = err instanceof Error ? err.message : String(err);
-  let current: unknown = err;
+function fromSolanaError(err: SolanaError): string {
+  if (err.cause?.context.code === 2001)
+    return "Invalid account tried to sign the transaction.";
 
-  while (current instanceof Error && current.cause) {
-    current = current.cause;
-    if (current instanceof Error) {
-      deepest = current.message;
-    }
-  }
-
-  return deepest;
+  return err.message;
 }

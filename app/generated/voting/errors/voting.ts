@@ -50,7 +50,7 @@ export type VotingError =
   | typeof VOTING_ERROR__POLL_NOT_ACTIVE
   | typeof VOTING_ERROR__POLL_NOT_DRAFT;
 
-let votingErrorMessages: Record<VotingError, string> | undefined;
+export let votingErrorMessages: Record<VotingError, string> | undefined;
 if (process.env.NODE_ENV !== "production") {
   votingErrorMessages = {
     [VOTING_ERROR__ACTIVE_CANDIDATES]: `Can not close poll with active canidates`,

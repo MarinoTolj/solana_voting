@@ -1,5 +1,5 @@
-import Link from 'next/link';
-import FetchPolls from '../utils/fetch-polls';
+import Link from "next/link";
+import FetchPolls from "../utils/fetch-polls";
 
 export default async function Polls() {
   const polls = await FetchPolls();
@@ -8,13 +8,18 @@ export default async function Polls() {
     <div className="mx-auto max-w-4xl px-6 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">All Polls</h1>
-        <p className="mt-2 text-foreground/70">Browse and participate in active and closed polls</p>
+        <p className="mt-2 text-foreground/70">
+          Browse and participate in active and closed polls
+        </p>
       </div>
 
       {!polls || polls.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-8 text-center text-muted">
           <p className="mb-4">No polls found yet.</p>
-          <Link href="/poll/create" className="inline-block px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition">
+          <Link
+            href="/poll/create"
+            className="inline-block px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition"
+          >
             Create the first poll
           </Link>
         </div>
@@ -28,13 +33,17 @@ export default async function Polls() {
                     <h2 className="font-semibold text-foreground text-lg">
                       {poll.name}
                     </h2>
-                    <p className="text-sm text-muted mt-1">{poll.description}</p>
+                    <p className="text-sm text-muted mt-1">
+                      {poll.description}
+                    </p>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    poll.closed
-                      ? "bg-destructive/10 text-destructive"
-                      : "bg-primary/10 text-green-600"
-                  }`}>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      poll.closed
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-primary/10 text-green-600"
+                    }`}
+                  >
                     {poll.closed ? "Closed" : "Active"}
                   </span>
                 </div>
@@ -43,13 +52,18 @@ export default async function Polls() {
                   <div className="text-sm text-muted">Voting in progress</div>
                 ) : (
                   <div className="space-y-2">
-                    {Array.from({ length: Number(poll.results.results.length) }).map((_, i) => {
-                      const result = poll.results.results[i];
-
+                    {poll.results.results.map((result, i) => {
                       return (
-                        <div key={i} className="flex items-center justify-between text-sm">
-                          <span className="text-foreground/70">{result.candidateName}</span>
-                          <span className="text-muted font-medium">{result.votes} vote{result.votes !== 1 ? "s" : ""}</span>
+                        <div
+                          key={i}
+                          className="flex items-center justify-between text-sm"
+                        >
+                          <span className="text-foreground/70">
+                            {result.candidateName}
+                          </span>
+                          <span className="text-muted font-medium">
+                            {result.votes} vote{result.votes !== 1 ? "s" : ""}
+                          </span>
                         </div>
                       );
                     })}
@@ -61,5 +75,5 @@ export default async function Polls() {
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Address, createSolanaRpc, isAddress } from "@solana/kit";
+import { Address, createSolanaRpc } from "@solana/kit";
 
 import {
   fetchCandidate,
@@ -17,83 +17,72 @@ import { CandidateCard } from "./candidate-card";
 import { Countdown } from "./countdown";
 import { useWallet } from "../lib/wallet/context";
 import { useSendTransaction } from "../lib/hooks/use-send-transaction";
-import SavePollResults, { PollResult } from "../utils/save-poll";
+import UpdatePollResults from "../utils/save-poll";
 import ClosePoll from "../utils/close-poll";
 import { ClosedPoll } from "./closed-poll";
+import { PollResult } from "../lib/db-table";
+import { useSolanaClient } from "../lib/solana-client-context";
+import { toast } from "sonner";
+import { parseTransactionError } from "../lib/errors";
 
-const rpc = createSolanaRpc(
-  "https://api.devnet.solana.com"
-);
+type PollStatus = "NOT_STARTED" | "ACTIVE" | "ENDED";
 
-type PollStatus =
-  | "NOT_STARTED"
-  | "ACTIVE"
-  | "ENDED";
-
-
-
-export function PollCard({ pda }:{pda:string}) {
+export function PollCard({ pollPda }: { pollPda: Address<string> }) {
   const [poll, setPoll] = useState<Poll | null>(null);
   const wallet = useWallet();
-  const { send , isSending} = useSendTransaction();
-  
+  const { send, isSending } = useSendTransaction();
+  const client = useSolanaClient();
+
   const [loading, setLoading] = useState(true);
 
   const [remaining, setRemaining] = useState<number>(0);
   const [status, setStatus] = useState<PollStatus>("NOT_STARTED");
 
-  const pollPda=pda as Address<typeof pda>;
-
   const loadPoll = useCallback(async () => {
     try {
-      const account = await fetchPoll(rpc, pollPda);
+      const account = await fetchPoll(client.rpc, pollPda);
       setPoll(account.data);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      toast(parseTransactionError(error));
       setPoll(null);
     } finally {
       setLoading(false);
     }
-  }, [pollPda]);
+  }, [pollPda, client]);
 
-  const savePoll=useCallback(async ()=>{
+  const savePoll = useCallback(async () => {
     try {
-        if (poll==null) return;
+      if (poll == null) return;
 
-        const pollResult:PollResult={
-          totalVotes: 0,
-          results: []
-        }
+      const pollResult: PollResult = {
+        totalVotes: 0,
+        results: [],
+      };
 
-        for (let i=0;i<poll.candidateAmount;i++){
-          const [candidatePda] = await findCandidatePda({
-            poll:pollPda,
-            candidateId:i,
-          });
-  
-          const account = await fetchCandidate(
-            rpc,
-            candidatePda
-          );
-          pollResult.totalVotes+=Number(account.data.candidateVotes);
-          pollResult.results.push({
-            candidateId: i,
-            votes: Number(account.data.candidateVotes),
-            candidateName: account.data.candidateName
-          })
+      for (let i = 0; i < poll.candidateAmount; i++) {
+        const [candidatePda] = await findCandidatePda({
+          poll: pollPda,
+          candidateId: i,
+        });
 
-        }
-        await SavePollResults(pollResult, pollPda);
-    } catch (err) {
-      console.error(err);
+        const account = await fetchCandidate(client.rpc, candidatePda);
+        pollResult.totalVotes += Number(account.data.candidateVotes);
+        pollResult.results.push({
+          candidateId: i,
+          votes: Number(account.data.candidateVotes),
+          candidateName: account.data.candidateName,
+        });
+      }
+      await UpdatePollResults(pollResult, pollPda);
+    } catch (error) {
+      toast(parseTransactionError(error));
     }
-  }, [poll, pollPda]);
+  }, [poll, pollPda, client]);
 
   useEffect(() => {
     if (!poll) return;
 
     async function update() {
-
       if (!poll) return;
 
       if (poll.startedAt.__option === "None") {
@@ -103,13 +92,9 @@ export function PollCard({ pda }:{pda:string}) {
 
       const now = Date.now();
 
-      const start =
-        Number(poll.startedAt.value) * 1000;
+      const start = Number(poll.startedAt.value) * 1000;
 
-      const end =
-        Number(
-          poll.startedAt.value + poll.duration
-        ) * 1000;
+      const end = Number(poll.startedAt.value + poll.duration) * 1000;
 
       if (now < start) {
         setStatus("NOT_STARTED");
@@ -126,9 +111,7 @@ export function PollCard({ pda }:{pda:string}) {
 
       setStatus("ACTIVE");
 
-      setRemaining(
-        Math.max(end - now, 0)
-      );
+      setRemaining(Math.max(end - now, 0));
     }
 
     update();
@@ -136,81 +119,88 @@ export function PollCard({ pda }:{pda:string}) {
     const interval = setInterval(update, 1000);
 
     return () => clearInterval(interval);
-    }, [poll, savePoll]);
+  }, [poll, savePoll]);
 
   useEffect(() => {
     loadPoll();
   }, [loadPoll]);
 
-  async function handleStartPoll(){
-    if (!wallet.signer || !poll){
-        console.log("Wallet is not defined")
-        return;
-      }
+  async function handleStartPoll() {
+    if (!wallet.signer || !poll) {
+      console.log("Wallet is not defined");
+      return;
+    }
     const start_poll_ix = await getStartPollInstructionAsync({
       signer: wallet.signer,
-      pollId:poll.pollId
+      pollId: poll.pollId,
     });
-    const signature = await send({ instructions:[start_poll_ix] });
-    
-    console.log("✅ start poll with signature:", signature);
-    await loadPoll();
+    try {
+      const signature = await send({ instructions: [start_poll_ix] });
+
+      console.log("✅ start poll with signature:", signature);
+      await loadPoll();
+    } catch (error) {
+      toast(parseTransactionError(error));
+    }
   }
 
-  
   async function handleClosePoll() {
-    if (poll==null || wallet.signer==null) return;
-    const instructions=[];
-    for (let i=0;i<poll.candidateAmount;i++){
-          const instruction=await getCloseCandidateInstructionAsync({
-            authority: wallet.signer,
-            candidateId: i,
-            pollId: poll.pollId
-          });
-          instructions.push(instruction);
+    if (poll == null || wallet.signer == null) return;
+    const instructions = [];
+    for (let i = 0; i < poll.candidateAmount; i++) {
+      const instruction = await getCloseCandidateInstructionAsync({
+        authority: wallet.signer,
+        candidateId: i,
+        pollId: poll.pollId,
+      });
+      instructions.push(instruction);
     }
     const instruction = await getClosePollInstructionAsync({
       authority: wallet.signer,
-      pollId: poll.pollId
+      pollId: poll.pollId,
     });
 
     instructions.push(instruction);
-    if (status==="NOT_STARTED"){
+    if (status === "NOT_STARTED") {
       await savePoll();
     }
-    const signature = await send({ instructions });
-    console.log("✅ close poll with signature:", signature);
-    await ClosePoll(pollPda);
-    await loadPoll();
-
+    try {
+      const signature = await send({ instructions });
+      console.log("✅ close poll with signature:", signature);
+      await ClosePoll(pollPda);
+      await loadPoll();
+    } catch (error) {
+      toast(parseTransactionError(error));
+    }
   }
   async function handleEndPoll() {
-    if (poll==null || wallet.signer==null) return;
-    
-    if (status!=="ACTIVE"){
+    if (poll == null || wallet.signer == null) return;
+
+    if (status !== "ACTIVE") {
       return;
     }
     const instruction = await getEndPollInstructionAsync({
       authority: wallet.signer,
-      pollId: poll.pollId
+      pollId: poll.pollId,
     });
-
-    const signature = await send({ instructions:[instruction] });
-    console.log("✅ end poll with signature:", signature);
-    await loadPoll();
-
-  }
-
-  if (!isAddress(pda)){
-    return <div className="px-6 py-8 text-center text-destructive">Invalid address: {pda}</div>
+    try {
+      const signature = await send({ instructions: [instruction] });
+      console.log("✅ end poll with signature:", signature);
+      await loadPoll();
+    } catch (error) {
+      toast(parseTransactionError(error));
+    }
   }
 
   if (loading) {
-    return <div className="px-6 py-8 text-center text-muted">Loading poll...</div>;
+    return (
+      <div className="px-6 py-8 text-center text-muted">Loading poll...</div>
+    );
   }
 
   if (!poll) {
-    return <ClosedPoll pda={pda}/>;
+    console.log({ poll });
+    return <ClosedPoll pollPda={pollPda} />;
   }
 
   return (
@@ -224,7 +214,9 @@ export function PollCard({ pda }:{pda:string}) {
         <div className="flex items-center justify-between text-sm text-muted">
           <span>{poll.candidateAmount.toString()} option(s)</span>
           {status === "ACTIVE" && <Countdown remaining={remaining} />}
-          {status === "ENDED" && <span className="text-destructive">Voting has ended</span>}
+          {status === "ENDED" && (
+            <span className="text-destructive">Voting has ended</span>
+          )}
         </div>
 
         {status === "NOT_STARTED" && (
@@ -250,15 +242,15 @@ export function PollCard({ pda }:{pda:string}) {
             />
           ))}
         </div>
-        {status === "ACTIVE"?
+        {status === "ACTIVE" ? (
           <button
             onClick={handleEndPoll}
             disabled={isSending}
             className="w-full mt-6 px-4 py-2 rounded-lg bg-destructive text-primary-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition"
           >
             End Poll
-          </button>:
-
+          </button>
+        ) : (
           <button
             onClick={handleClosePoll}
             disabled={isSending}
@@ -266,9 +258,7 @@ export function PollCard({ pda }:{pda:string}) {
           >
             Close Poll
           </button>
-        }
-
-        
+        )}
       </div>
     </div>
   );

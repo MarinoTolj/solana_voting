@@ -3,15 +3,17 @@
 import { useEffect, useState } from "react";
 import { Address } from "@solana/kit";
 import FetchPoll from "../utils/fetch-poll";
+import { PollRow } from "../lib/db-table";
+import { parseTransactionError } from "../lib/errors";
+import { toast } from "sonner";
 
-export function ClosedPoll({ pda }:{pda:string}) {
-    const pollPda=pda as Address<typeof pda>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [poll, setPoll] = useState<any>();
+export function ClosedPoll({ pollPda }:{pollPda:Address<string>}) {
+    const [poll, setPoll] = useState<PollRow>();
     const [loading, setLoading] = useState(true);
+    console.log({pollPda});
     
     
-      useEffect(() => {
+    useEffect(() => {
         let mounted = true;
     
         async function loadPoll() {
@@ -22,8 +24,8 @@ export function ClosedPoll({ pda }:{pda:string}) {
             if (mounted) {
               setPoll(pollData);
             }
-          } catch (err) {
-            console.error(err);
+          } catch (error) {
+            toast(parseTransactionError(error));
           } finally {
             if (mounted) {
               setLoading(false);
@@ -36,7 +38,7 @@ export function ClosedPoll({ pda }:{pda:string}) {
         return () => {
           mounted = false;
         };
-    }, [pda, pollPda]);
+    }, [pollPda]);
 
     if (loading) {
         return <div className="mx-auto max-w-2xl px-6 py-8 text-center text-muted">Loading poll results...</div>;
@@ -59,27 +61,28 @@ export function ClosedPoll({ pda }:{pda:string}) {
                     </div>
                 ) : (
                     <div className="space-y-3 pt-4">
-                        {Array.from({ length: Number(poll.results.results.length) }).map((_, i) => {
-                            const result = poll.results.results[i];
-                            const percentage = poll.results.totalVotes > 0
-                                ? Math.round((result.votes / poll.results.totalVotes) * 100)
+                        {
+                            poll.results.results.map((result, i)=>{
+                                const percentage = poll.results!.totalVotes > 0
+                                ? Math.round((result.votes / poll.results!.totalVotes) * 100)
                                 : 0;
 
-                            return (
-                                <div key={i} className="space-y-1.5">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="font-medium text-foreground">{result.candidateName}</span>
-                                        <span className="text-muted">{result.votes} vote{result.votes !== 1 ? "s" : ""} ({percentage}%)</span>
+                                return (
+                                    <div key={i} className="space-y-1.5">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="font-medium text-foreground">{result.candidateName}</span>
+                                            <span className="text-muted">{result.votes} vote{result.votes !== 1 ? "s" : ""} ({percentage}%)</span>
+                                        </div>
+                                        <div className="h-2 rounded-full bg-muted/20 overflow-hidden">
+                                            <div
+                                                className="h-full bg-primary transition-all duration-500"
+                                                style={{ width: `${percentage}%` }}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="h-2 rounded-full bg-muted/20 overflow-hidden">
-                                        <div
-                                            className="h-full bg-primary transition-all duration-500"
-                                            style={{ width: `${percentage}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })
+                        }
                     </div>
                 )}
 

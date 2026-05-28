@@ -1,18 +1,9 @@
 import { Address } from "@solana/kit";
 import { createClient } from "./supabase/client";
+import { PollResult } from "../lib/db-table";
 
-export type PollResult={
-    totalVotes:number,
-    results:CandidateResult[]
-}
 
-export type CandidateResult={
-    candidateId:number,
-    candidateName:string,
-    votes:number
-}
-
-export default async function SavePollResults(pollResult:PollResult, pollPda:Address<string>){
+export default async function UpdatePollResults(pollResult:PollResult, pollPda:Address<string>){
     const supabase = createClient();
 
     const { data, error } = await supabase

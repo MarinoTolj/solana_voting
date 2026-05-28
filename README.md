@@ -93,6 +93,14 @@ To test against a local validator instead of devnet:
 
 3. **Switch to localnet** in the app using the cluster selector in the header.
 
+## Supabase
+Use this command to generate types from supabase db:
+```bash
+npx supabase gen types typescript \
+        --project-id cistrzmozmzgafvmjqyw \
+        > app/model/types.ts
+```
+
 ## Deploy Your Own voting
 
 The included voting program is already deployed to devnet. To deploy your own:
