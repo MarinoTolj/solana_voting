@@ -1,15 +1,16 @@
-import { createClient } from "./supabase/client";
+"use server;";
+
+import { cookies } from "next/headers";
+import { createClient } from "./supabase/server";
 import { PollInsert } from "../lib/db-table";
 
-export default async function InsertPoll(poll:PollInsert){
-    const supabase = createClient();
+export async function insertPollAction(poll: PollInsert) {
+  const supabase = createClient(await cookies());
 
-    const { error } = await supabase
-      .from("polls")
-      .insert(poll);
+  const { error } = await supabase.from("polls").insert(poll);
 
-    if (error) {
-      console.error(error);
-      throw error;
-    }
+  if (error) {
+    console.error(error);
+    throw error;
+  }
 }

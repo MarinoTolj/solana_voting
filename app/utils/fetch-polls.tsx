@@ -1,17 +1,19 @@
 import { PollRow } from "../lib/db-table";
 import { createClient } from "./supabase/client";
 
-export default async function FetchPolls():Promise<PollRow[]>{
-    const supabase = createClient();
+export default async function FetchPolls(): Promise<PollRow[]> {
+  const supabase = createClient();
 
-    const { data: polls, error } = await supabase
-    .from('polls')
-    .select('*')
+  const { data, error } = await supabase
+    .from("polls")
+    .select("*")
+    .order("closed", { ascending: true })
+    .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error(error);
-      throw error;
-    }
+  if (error) {
+    console.error(error);
+    throw error;
+  }
 
-    return polls as PollRow[];
+  return data as PollRow[];
 }

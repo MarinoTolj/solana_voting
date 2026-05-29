@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Address, createSolanaRpc } from "@solana/kit";
+import { Address } from "@solana/kit";
 
 import {
   fetchCandidate,

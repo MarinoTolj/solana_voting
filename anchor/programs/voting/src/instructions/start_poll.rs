@@ -7,7 +7,7 @@ pub fn start(ctx: Context<StartPoll>) -> Result<()> {
 
     require!(poll.started_at.is_none(), PollError::PollNotDraft);
     require!(poll.candidate_amount > 1, PollError::CannotStartPoll);
-    
+
     poll.started_at = Some(Clock::get()?.unix_timestamp);
 
     Ok(())
@@ -16,9 +16,10 @@ pub fn start(ctx: Context<StartPoll>) -> Result<()> {
 #[derive(Accounts)]
 #[instruction(poll_id:u64)]
 pub struct StartPoll<'info> {
-    pub signer: Signer<'info>,
+    pub authority: Signer<'info>,
     #[account(
         mut,
+        has_one = authority,
         seeds = [b"poll".as_ref(), poll_id.to_le_bytes().as_ref()],
         bump
     )]

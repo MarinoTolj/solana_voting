@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import {
-  SolanaError,
-} from "@solana/kit";
+import { SolanaError } from "@solana/kit";
 import {
   getVotingErrorMessage,
   votingErrorMessages,
@@ -20,17 +18,18 @@ export function parseTransactionError(err: unknown): string {
     (err as any).name === "SolanaError"
   ) {
     const solanaError = err as SolanaError;
+    const cause = solanaError.cause as SolanaError;
 
-    if (solanaError.cause !== null) {
-      if (solanaError.cause?.context.code in votingErrorMessages!) {
-        return getVotingErrorMessage(
-          solanaError.cause?.context.code as VotingError
-        );
-      }
-
-      // For all other errors, kit's SolanaError already has readable messages.
-      return fromSolanaError(solanaError);
+    if (cause.message === "Approval Denied") {
+      return "Transaction approval was denied.";
     }
+
+    if (cause.context.code in votingErrorMessages!) {
+      return getVotingErrorMessage(cause.context.code as VotingError);
+    }
+
+    // For all other errors, kit's SolanaError already has readable messages.
+    return fromSolanaError(solanaError);
   }
   return err instanceof Error ? err.message : String(err);
 }
