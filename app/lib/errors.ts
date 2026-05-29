@@ -11,7 +11,7 @@ export function parseTransactionError(err: unknown): string {
   if (err instanceof Error && err.message.includes("User rejected")) {
     return "Transaction was rejected by the wallet.";
   }
-
+  console.log({ err });
   if (
     err !== null &&
     err !== undefined &&

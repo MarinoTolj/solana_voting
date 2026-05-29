@@ -7,36 +7,27 @@ import {
   fetchCandidate,
   fetchPoll,
   findCandidatePda,
-  getCloseCandidateInstructionAsync,
-  getClosePollInstructionAsync,
-  getEndPollInstructionAsync,
-  getStartPollInstructionAsync,
   type Poll,
 } from "../generated/voting";
 import { CandidateCard } from "./candidate-card";
 import { Countdown } from "./countdown";
-import { useWallet } from "../lib/wallet/context";
-import { useSendTransaction } from "../lib/hooks/use-send-transaction";
-import UpdatePollResults from "../utils/save-poll";
-import ClosePoll from "../utils/close-poll";
-import { ClosedPoll } from "./closed-poll";
 import { PollResult } from "../lib/db-table";
 import { useSolanaClient } from "../lib/solana-client-context";
 import { toast } from "sonner";
 import { parseTransactionError } from "../lib/errors";
-
-type PollStatus = "NOT_STARTED" | "ACTIVE" | "ENDED";
+import { useStartPoll } from "../hooks/use-start-poll";
+import { useEndPoll } from "../hooks/use-end-poll";
+import { useClosePoll } from "../hooks/use-close-poll";
+import { usePollTimer } from "../hooks/use-poll-timer";
+import { PollProvider } from "../lib/poll-context";
+import UpdatePollResults from "../utils/save-poll";
 
 export function PollCard({ pollPda }: { pollPda: Address<string> }) {
   const [poll, setPoll] = useState<Poll | null>(null);
-  const wallet = useWallet();
-  const { send, isSending } = useSendTransaction();
+  const [loading, setLoading] = useState(true);
   const client = useSolanaClient();
 
-  const [loading, setLoading] = useState(true);
-
-  const [remaining, setRemaining] = useState<number>(0);
-  const [status, setStatus] = useState<PollStatus>("NOT_STARTED");
+  const { status, remaining } = usePollTimer(poll);
 
   const loadPoll = useCallback(async () => {
     try {
@@ -80,117 +71,35 @@ export function PollCard({ pollPda }: { pollPda: Address<string> }) {
   }, [poll, pollPda, client]);
 
   useEffect(() => {
-    if (!poll) return;
-
-    async function update() {
-      if (!poll) return;
-
-      if (poll.startedAt.__option === "None") {
-        setStatus("NOT_STARTED");
-        return;
-      }
-
-      const now = Date.now();
-
-      const start = Number(poll.startedAt.value) * 1000;
-
-      const end = Number(poll.startedAt.value + poll.duration) * 1000;
-
-      if (now < start) {
-        setStatus("NOT_STARTED");
-        return;
-      }
-
-      if (now >= end) {
-        setStatus("ENDED");
-        await savePoll();
-        setRemaining(0);
-        clearInterval(interval);
-        return;
-      }
-
-      setStatus("ACTIVE");
-
-      setRemaining(Math.max(end - now, 0));
+    if (status === "ENDED") {
+      savePoll();
     }
-
-    update();
-
-    const interval = setInterval(update, 1000);
-
-    return () => clearInterval(interval);
-  }, [poll, savePoll]);
+  }, [status, savePoll]);
 
   useEffect(() => {
     loadPoll();
   }, [loadPoll]);
 
-  async function handleStartPoll() {
-    if (!wallet.signer || !poll) {
-      console.log("Wallet is not defined");
-      return;
-    }
-    const start_poll_ix = await getStartPollInstructionAsync({
-      signer: wallet.signer,
-      pollId: poll.pollId,
-    });
-    try {
-      const signature = await send({ instructions: [start_poll_ix] });
+  const { startPoll, isLoading: isStarting } = useStartPoll(() => loadPoll());
+  const { endPoll, isLoading: isEnding } = useEndPoll(() => loadPoll());
+  const { closePoll, isLoading: isClosing } = useClosePoll(() => loadPoll());
 
-      console.log("✅ start poll with signature:", signature);
-      await loadPoll();
-    } catch (error) {
-      toast(parseTransactionError(error));
-    }
-  }
+  const handleStartPoll = async () => {
+    if (!poll) return;
+    await startPoll(poll.pollId);
+  };
 
-  async function handleClosePoll() {
-    if (poll == null || wallet.signer == null) return;
-    const instructions = [];
-    for (let i = 0; i < poll.candidateAmount; i++) {
-      const instruction = await getCloseCandidateInstructionAsync({
-        authority: wallet.signer,
-        candidateId: i,
-        pollId: poll.pollId,
-      });
-      instructions.push(instruction);
-    }
-    const instruction = await getClosePollInstructionAsync({
-      authority: wallet.signer,
-      pollId: poll.pollId,
-    });
+  const handleEndPoll = async () => {
+    if (!poll) return;
+    await endPoll(poll.pollId);
+  };
 
-    instructions.push(instruction);
-    if (status === "NOT_STARTED") {
-      await savePoll();
-    }
-    try {
-      const signature = await send({ instructions });
-      console.log("✅ close poll with signature:", signature);
-      await ClosePoll(pollPda);
-      await loadPoll();
-    } catch (error) {
-      toast(parseTransactionError(error));
-    }
-  }
-  async function handleEndPoll() {
-    if (poll == null || wallet.signer == null) return;
+  const handleClosePoll = async () => {
+    if (!poll) return;
+    await closePoll(poll.pollId, poll.candidateAmount, pollPda);
+  };
 
-    if (status !== "ACTIVE") {
-      return;
-    }
-    const instruction = await getEndPollInstructionAsync({
-      authority: wallet.signer,
-      pollId: poll.pollId,
-    });
-    try {
-      const signature = await send({ instructions: [instruction] });
-      console.log("✅ end poll with signature:", signature);
-      await loadPoll();
-    } catch (error) {
-      toast(parseTransactionError(error));
-    }
-  }
+  const isTransactionPending = isStarting || isEnding || isClosing;
 
   if (loading) {
     return (
@@ -198,68 +107,78 @@ export function PollCard({ pollPda }: { pollPda: Address<string> }) {
     );
   }
 
-  if (!poll) {
-    console.log({ poll });
-    return <ClosedPoll pollPda={pollPda} />;
+  if (poll == null) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 py-8 text-center text-destructive">
+        Poll not found onchain
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-8">
-      <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">{poll.name}</h1>
-          <p className="mt-2 text-foreground/70">{poll.description}</p>
-        </div>
+    <PollProvider
+      poll={poll}
+      pollPda={pollPda}
+      status={status}
+      remaining={remaining}
+    >
+      <div className="mx-auto max-w-2xl px-6 py-8">
+        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">{poll.name}</h1>
+            <p className="mt-2 text-foreground/70">{poll.description}</p>
+          </div>
 
-        <div className="flex items-center justify-between text-sm text-muted">
-          <span>{poll.candidateAmount.toString()} option(s)</span>
-          {status === "ACTIVE" && <Countdown remaining={remaining} />}
-          {status === "ENDED" && (
-            <span className="text-destructive">Voting has ended</span>
+          <div className="flex items-center justify-between text-sm text-muted">
+            <span>{poll.candidateAmount.toString()} option(s)</span>
+            {status === "ACTIVE" && <Countdown remaining={remaining} />}
+            {status === "ENDED" && (
+              <span className="text-destructive">Voting has ended</span>
+            )}
+          </div>
+
+          {status === "NOT_STARTED" && (
+            <button
+              onClick={handleStartPoll}
+              disabled={isTransactionPending}
+              className="w-full px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition"
+            >
+              {isStarting ? "Starting..." : "Start Poll"}
+            </button>
+          )}
+
+          <div className="space-y-3 pt-4">
+            {Array.from({ length: Number(poll.candidateAmount) }).map(
+              (_, i) => (
+                <CandidateCard
+                  key={i}
+                  seeds={{
+                    poll: pollPda,
+                    candidateId: i,
+                  }}
+                />
+              )
+            )}
+          </div>
+          {status === "ACTIVE" ? (
+            <button
+              onClick={handleEndPoll}
+              disabled={isTransactionPending}
+              className="w-full mt-6 px-4 py-2 rounded-lg bg-destructive text-primary-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition"
+            >
+              {isEnding ? "Ending..." : "End Poll"}
+            </button>
+          ) : (
+            <button
+              onClick={handleClosePoll}
+              disabled={isTransactionPending}
+              className="w-full mt-6 px-4 py-2 rounded-lg bg-destructive text-primary-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition"
+            >
+              {isClosing ? "Closing..." : "Close Poll"}
+            </button>
           )}
         </div>
-
-        {status === "NOT_STARTED" && (
-          <button
-            onClick={handleStartPoll}
-            disabled={isSending}
-            className="w-full px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition"
-          >
-            Start Poll
-          </button>
-        )}
-
-        <div className="space-y-3 pt-4">
-          {Array.from({ length: Number(poll.candidateAmount) }).map((_, i) => (
-            <CandidateCard
-              key={i}
-              seeds={{
-                poll: pollPda,
-                candidateId: i,
-              }}
-              startPoll={status === "ACTIVE"}
-              pollId={poll.pollId}
-            />
-          ))}
-        </div>
-        {status === "ACTIVE" ? (
-          <button
-            onClick={handleEndPoll}
-            disabled={isSending}
-            className="w-full mt-6 px-4 py-2 rounded-lg bg-destructive text-primary-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition"
-          >
-            End Poll
-          </button>
-        ) : (
-          <button
-            onClick={handleClosePoll}
-            disabled={isSending}
-            className="w-full mt-6 px-4 py-2 rounded-lg bg-destructive text-primary-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition"
-          >
-            Close Poll
-          </button>
-        )}
       </div>
-    </div>
+    </PollProvider>
   );
 }

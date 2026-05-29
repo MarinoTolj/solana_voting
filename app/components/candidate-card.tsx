@@ -12,21 +12,21 @@ import {
 import { useWallet } from "../lib/wallet/context";
 import { useSendTransaction } from "../lib/hooks/use-send-transaction";
 import { useSolanaClient } from "../lib/solana-client-context";
+import { usePollContext } from "../lib/poll-context";
 import { toast } from "sonner";
 import { parseTransactionError } from "../lib/errors";
 
 type Props = {
   seeds: CandidateSeeds;
-  startPoll: boolean;
-  pollId: bigint;
 };
 
-export function CandidateCard({ seeds, startPoll, pollId }: Props) {
+export function CandidateCard({ seeds }: Props) {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
   const wallet = useWallet();
   const { send, isSending } = useSendTransaction();
   const client = useSolanaClient();
+  const { poll, status } = usePollContext();
 
   useEffect(() => {
     let mounted = true;
@@ -61,15 +61,15 @@ export function CandidateCard({ seeds, startPoll, pollId }: Props) {
 
   const handleVote = async () => {
     try {
-      if (!wallet.signer) {
-        console.log("Wallet is not defined");
+      if (!wallet.signer || !poll) {
+        toast("Wallet or poll not available");
         return;
       }
 
       const instruction = await getVoteCandidateInstructionAsync({
         signer: wallet.signer,
         candidateId: seeds.candidateId,
-        pollId,
+        pollId: poll.pollId,
       });
 
       const signature = await send({ instructions: [instruction] });
@@ -109,7 +109,7 @@ export function CandidateCard({ seeds, startPoll, pollId }: Props) {
       </div>
       <button
         onClick={handleVote}
-        /* disabled={!startPoll || isSending} */
+        disabled={status !== "ACTIVE" || isSending}
         className="ml-4 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
         {isSending ? "Voting..." : "Vote"}
