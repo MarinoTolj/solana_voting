@@ -6,9 +6,9 @@ pub struct Poll {
     pub authority: Pubkey,
 
     pub poll_id: u64,
-    #[max_len(16)]
-    pub name: String,
     #[max_len(32)]
+    pub name: String,
+    #[max_len(100)]
     pub description: String,
     pub started_at: Option<i64>,
     ///In seconds

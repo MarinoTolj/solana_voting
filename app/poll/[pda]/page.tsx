@@ -1,7 +1,9 @@
+import { notFound } from "next/navigation";
+import { isAddress } from "@solana/kit";
+
 import { ClosedPoll } from "@/app/components/closed-poll";
 import { PollCard } from "@/app/components/poll-card";
-import FetchPoll from "@/app/utils/fetch-poll";
-import { isAddress } from "@solana/kit";
+import fetchPollFromDb from "@/app/utils/fetch-poll";
 
 type PollPageProps = {
   params: Promise<{
@@ -13,20 +15,20 @@ export default async function PollPage({ params }: PollPageProps) {
   const { pda } = await params;
 
   if (!isAddress(pda)) {
-    return (
-      <div className="px-6 py-8 text-center text-destructive">
-        Invalid address: {pda}
-      </div>
-    );
+    notFound();
   }
 
-  const poll = await FetchPoll(pda);
-  if (poll == null) {
-    return (
-      <div className="mx-auto max-w-2xl px-6 py-8 text-center text-destructive">
-        Poll not found in database
-      </div>
-    );
+  let poll;
+
+  try {
+    poll = await fetchPollFromDb(pda);
+  } catch (error) {
+    console.error("Failed to fetch poll:", error);
+    notFound();
+  }
+
+  if (!poll) {
+    notFound();
   }
 
   if (poll.closed) {

@@ -20,12 +20,18 @@ import { useEndPoll } from "../hooks/use-end-poll";
 import { useClosePoll } from "../hooks/use-close-poll";
 import { usePollTimer } from "../hooks/use-poll-timer";
 import { PollProvider } from "../lib/poll-context";
-import UpdatePollResults from "../utils/save-poll";
+import updatePollResults from "../utils/save-poll";
 
 export function PollCard({ pollPda }: { pollPda: Address<string> }) {
   const [poll, setPoll] = useState<Poll | null>(null);
   const [loading, setLoading] = useState(true);
   const client = useSolanaClient();
+
+  const { startPoll, isLoading: isStarting } = useStartPoll(() => loadPoll());
+  const { endPoll, isLoading: isEnding } = useEndPoll(() => loadPoll());
+  const { handleClosePoll, isLoading: isClosing } = useClosePoll(() =>
+    loadPoll()
+  );
 
   const { status, remaining } = usePollTimer(poll);
 
@@ -64,7 +70,7 @@ export function PollCard({ pollPda }: { pollPda: Address<string> }) {
           candidateName: account.data.candidateName,
         });
       }
-      await UpdatePollResults(pollResult, pollPda);
+      await updatePollResults(pollResult, pollPda);
     } catch (error) {
       toast(parseTransactionError(error));
     }
@@ -80,10 +86,6 @@ export function PollCard({ pollPda }: { pollPda: Address<string> }) {
     loadPoll();
   }, [loadPoll]);
 
-  const { startPoll, isLoading: isStarting } = useStartPoll(() => loadPoll());
-  const { endPoll, isLoading: isEnding } = useEndPoll(() => loadPoll());
-  const { closePoll, isLoading: isClosing } = useClosePoll(() => loadPoll());
-
   const handleStartPoll = async () => {
     if (!poll) return;
     await startPoll(poll.pollId);
@@ -94,9 +96,9 @@ export function PollCard({ pollPda }: { pollPda: Address<string> }) {
     await endPoll(poll.pollId);
   };
 
-  const handleClosePoll = async () => {
+  const closePoll = async () => {
     if (!poll) return;
-    await closePoll(poll.pollId, poll.candidateAmount, pollPda);
+    await handleClosePoll(poll.pollId, poll.candidateAmount, pollPda);
   };
 
   const isTransactionPending = isStarting || isEnding || isClosing;
@@ -170,7 +172,7 @@ export function PollCard({ pollPda }: { pollPda: Address<string> }) {
             </button>
           ) : (
             <button
-              onClick={handleClosePoll}
+              onClick={closePoll}
               disabled={isTransactionPending}
               className="w-full mt-6 px-4 py-2 rounded-lg bg-destructive text-primary-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition"
             >

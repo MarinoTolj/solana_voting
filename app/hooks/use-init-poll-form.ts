@@ -62,6 +62,14 @@ export function useInitPollForm() {
       return false;
     }
 
+    if (trimmedInput.length > 32) {
+      setErrors((current) => ({
+        ...current,
+        candidateInput: "Max len for option name is 32 characters",
+      }));
+      return false;
+    }
+
     if (
       values.candidates.some(
         (candidate) => candidate.toLowerCase() === trimmedInput.toLowerCase()
@@ -103,9 +111,15 @@ export function useInitPollForm() {
     if (!values.pollName.trim()) {
       nextErrors.pollName = "Poll name is required";
     }
+    if (values.pollName.length > 32) {
+      nextErrors.pollName = "Poll name must be at most 32 characters";
+    }
 
     if (!values.pollDesc.trim()) {
       nextErrors.pollDesc = "Poll description is required";
+    }
+    if (values.pollDesc.length > 100) {
+      nextErrors.pollDesc = "Poll description must be at most 100 characters";
     }
 
     if (!values.duration.trim()) {

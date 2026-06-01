@@ -3,7 +3,7 @@ import { createClient } from "./supabase/client";
 import { PollResult } from "../lib/db-table";
 
 
-export default async function UpdatePollResults(pollResult:PollResult, pollPda:Address<string>){
+export default async function updatePollResults(pollResult:PollResult, pollPda:Address<string>){
     const supabase = createClient();
 
     const { data, error } = await supabase

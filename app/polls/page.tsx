@@ -1,8 +1,8 @@
 import Link from "next/link";
-import FetchPolls from "../utils/fetch-polls";
+import fetchPollsFromDb from "../utils/fetch-polls";
 
 export default async function Polls() {
-  const polls = await FetchPolls();
+  const polls = await fetchPollsFromDb();
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">

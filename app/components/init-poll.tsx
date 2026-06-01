@@ -7,9 +7,9 @@ import { useWallet } from "../lib/wallet/context";
 import { useSendTransaction } from "../lib/hooks/use-send-transaction";
 import { useInitPollForm } from "../hooks/use-init-poll-form";
 import { buildPollInitInstructions } from "../lib/init-poll";
-import { insertPollAction } from "../utils/insert-poll";
 import { PollInsert } from "../lib/db-table";
 import { parseTransactionError } from "../lib/errors";
+import { createPoll } from "../utils/create-poll";
 
 export default function InitPoll() {
   const wallet = useWallet();
@@ -65,7 +65,7 @@ export default function InitPoll() {
         description: values.pollDesc.trim(),
       };
 
-      await insertPollAction(pollInsert);
+      await createPoll(pollInsert);
       router.push(`/poll/${pollPda}`);
     } catch (error) {
       const message = parseTransactionError(error);

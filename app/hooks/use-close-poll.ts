@@ -8,13 +8,13 @@ import { useWallet } from "../lib/wallet/context";
 import { useSendTransaction } from "../lib/hooks/use-send-transaction";
 import { toast } from "sonner";
 import { parseTransactionError } from "../lib/errors";
-import ClosePoll from "../utils/close-poll";
+import closePoll from "../utils/close-poll";
 
 export function useClosePoll(onSuccess?: () => void) {
   const wallet = useWallet();
   const { send, isSending } = useSendTransaction();
 
-  const closePoll = useCallback(
+  const handleClosePoll = useCallback(
     async (
       pollId: bigint,
       candidateAmount: number,
@@ -46,7 +46,7 @@ export function useClosePoll(onSuccess?: () => void) {
         const signature = await send({ instructions });
         console.log("✅ close poll with signature:", signature);
 
-        await ClosePoll(pollPda);
+        await closePoll(pollPda);
         onSuccess?.();
       } catch (error) {
         toast(parseTransactionError(error));
@@ -55,5 +55,5 @@ export function useClosePoll(onSuccess?: () => void) {
     [wallet.signer, send, onSuccess]
   );
 
-  return { closePoll, isLoading: isSending };
+  return { handleClosePoll, isLoading: isSending };
 }

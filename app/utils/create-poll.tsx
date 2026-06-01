@@ -1,10 +1,10 @@
-"use server;";
+"use server";
 
 import { cookies } from "next/headers";
 import { createClient } from "./supabase/server";
 import { PollInsert } from "../lib/db-table";
 
-export async function insertPollAction(poll: PollInsert) {
+export async function createPoll(poll: PollInsert) {
   const supabase = createClient(await cookies());
 
   const { error } = await supabase.from("polls").insert(poll);

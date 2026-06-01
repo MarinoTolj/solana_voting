@@ -1,8 +1,10 @@
+"use server";
+
 import { Address } from "@solana/kit";
 import { createClient } from "./supabase/client";
 import { PollRow } from "../lib/db-table";
 
-export default async function FetchPoll(
+export default async function fetchPollFromDb(
   pollPda: Address<string>
 ): Promise<PollRow> {
   const supabase = createClient();
