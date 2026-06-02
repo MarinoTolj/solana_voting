@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { isAddress } from "@solana/kit";
 
 import { ClosedPoll } from "@/app/components/closed-poll";
-import { PollCard } from "@/app/components/poll-card";
+import { PollDetail } from "@/app/components/poll-detail";
 import fetchPollFromDb from "@/app/utils/fetch-poll";
 
 type PollPageProps = {
@@ -35,5 +35,5 @@ export default async function PollPage({ params }: PollPageProps) {
     return <ClosedPoll poll={poll} />;
   }
 
-  return <PollCard pollPda={pda} />;
+  return <PollDetail pollPda={pda} />;
 }

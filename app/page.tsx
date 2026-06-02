@@ -8,14 +8,11 @@ import { useBalance } from "./lib/hooks/use-balance";
 import { lamportsToSolString } from "./lib/lamports";
 import { useSolanaClient } from "./lib/solana-client-context";
 import { ellipsify } from "./lib/explorer";
-import { GridBackground } from "./components/grid-background";
 import { ThemeToggle } from "./components/theme-toggle";
 import { ClusterSelect } from "./components/cluster-select";
 import { WalletButton } from "./components/wallet-button";
 import { useCluster } from "./components/cluster-context";
-import InitPoll from "./components/init-poll";
 import Link from "next/link";
-
 
 export default function Home() {
   const { wallet, status } = useWallet();
@@ -79,13 +76,11 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
-      {/* <GridBackground /> */}
-
       <div className="relative z-10">
         {/* Header */}
         <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <span className="text-sm font-semibold tracking-tight">
-            Solana Starter Kit
+            Solana Voting App
           </span>
           <div className="flex items-center gap-3">
             <ThemeToggle />
@@ -107,13 +102,12 @@ export default function Home() {
 
               <div className="flex max-w-2xl flex-col gap-3">
                 <p className="text-base leading-relaxed text-foreground/50">
-                  This program creates a personal voting for each user using a
-                  Program Derived Address (PDA). Connect your wallet, deposit
-                  SOL into your voting, and withdraw it anytime. Only you can
-                  access your funds.
+                  Create polls with names, descriptions, and candidate options.
+                  Connect your wallet, start voting, end polls, and review
+                  results in a Solana + Anchor-powered voting app.
                 </p>
                 <p className="text-sm leading-relaxed text-foreground/40">
-                  The voting is an{" "}
+                  The voting app uses an{" "}
                   <a
                     href="https://www.anchor-lang.com/docs/introduction"
                     target="_blank"
@@ -122,8 +116,7 @@ export default function Home() {
                   >
                     Anchor
                   </a>{" "}
-                  program you can deploy to localnet or devnet and modify
-                  yourself. Check the README for setup instructions.
+                  program along with Supabase-backed metadata.
                 </p>
                 <div className="flex flex-wrap gap-4">
                   <a
@@ -264,13 +257,43 @@ export default function Home() {
             )}
             <section className="space-y-4">
               <h2 className="text-xl font-semibold text-foreground">Polls</h2>
+              {!address && (
+                <div className="rounded-2xl border border-border-low bg-card/50 px-8 py-12 text-center">
+                  <p className="text-lg font-semibold text-foreground mb-2">
+                    Connect Your Wallet
+                  </p>
+                  <p className="text-sm text-foreground/60 max-w-sm mx-auto mb-6">
+                    Sign in with your Solana wallet to create polls, vote, and
+                    view your voting history.
+                  </p>
+                  <div className="relative inline-block">
+                    <WalletButton />
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
-                <Link href="/poll/create" className="rounded-lg border border-border bg-card px-4 py-3 text-center font-medium text-foreground hover:bg-secondary transition">
-                  Create Poll
-                </Link>
-                <Link href="/polls" className="rounded-lg border border-border bg-card px-4 py-3 text-center font-medium text-foreground hover:bg-secondary transition">
+                {address && (
+                  <Link
+                    href="/poll/create"
+                    className="rounded-lg border border-border bg-card px-4 py-3 text-center font-medium text-foreground hover:bg-secondary transition"
+                  >
+                    Create Poll
+                  </Link>
+                )}
+                <Link
+                  href="/polls"
+                  className="rounded-lg border border-border bg-card px-4 py-3 text-center font-medium text-foreground hover:bg-secondary transition"
+                >
                   View All Polls
                 </Link>
+                {address && (
+                  <Link
+                    href={`/user/${address}`}
+                    className="rounded-lg border border-border bg-card px-4 py-3 text-center font-medium text-foreground hover:bg-secondary transition"
+                  >
+                    View Your Polls
+                  </Link>
+                )}
               </div>
             </section>
           </div>
