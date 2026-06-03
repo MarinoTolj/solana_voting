@@ -6,7 +6,7 @@ mod tests {
         state::{candidate::Candidate, poll::Poll},
         ID as PROGRAM_ID,
     };
-    use anchor_lang::{prelude::system_program, solana_program::log, AccountDeserialize};
+    use anchor_lang::{prelude::system_program, solana_program::log, AccountDeserialize, Key};
     use litesvm::LiteSVM;
     use solana_sdk::{
         hash::hash,
@@ -61,13 +61,20 @@ mod tests {
         Pubkey::find_program_address(&[b"poll", &poll_id.to_le_bytes()], &PROGRAM_ID)
     }
 
-    fn get_candidate_pda(poll_id: u64, candidate_id: u64) -> (Pubkey, u8) {
+    fn get_candidate_pda(poll: Pubkey, candidate_id: u8) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
                 b"candidate",
-                poll_id.to_le_bytes().as_ref(),
+                poll.key().as_ref(),
                 candidate_id.to_le_bytes().as_ref(),
             ],
+            &PROGRAM_ID,
+        )
+    }
+
+    fn get_vote_record_pda(poll: Pubkey, signer: Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[b"vote", poll.key().as_ref(), signer.key().as_ref()],
             &PROGRAM_ID,
         )
     }
@@ -112,17 +119,15 @@ mod tests {
         }
     }
 
-    //TODO: remove ix_name and inline it in fn.
     fn create_candidate_ix(
-        ix_name: &str,
         signer: &Pubkey,
         poll: &Pubkey,
         candidate: &Pubkey,
-        candidate_id: u64,
+        candidate_id: u8,
         poll_id: u64,
         name: &str,
     ) -> Instruction {
-        let mut data = get_discriminator(ix_name).to_vec();
+        let mut data = get_discriminator("initialize_candidate").to_vec();
 
         data.extend_from_slice(&candidate_id.to_le_bytes());
         data.extend_from_slice(&poll_id.to_le_bytes());
@@ -140,8 +145,8 @@ mod tests {
         }
     }
 
-    fn start_poll_ix(ix_name: &str, signer: &Pubkey, poll: &Pubkey, poll_id: u64) -> Instruction {
-        let mut data = get_discriminator(ix_name).to_vec();
+    fn start_poll_ix(signer: &Pubkey, poll: &Pubkey, poll_id: u64) -> Instruction {
+        let mut data = get_discriminator("start_poll").to_vec();
         data.extend_from_slice(&poll_id.to_le_bytes());
 
         Instruction {
@@ -153,13 +158,14 @@ mod tests {
             data,
         }
     }
-    //TODO: Fix later (Broke bcs of changes to unique vote)
+
     fn vote_ix(
         ix_name: &str,
         signer: &Pubkey,
         poll: &Pubkey,
         candidate: &Pubkey,
-        candidate_id: u64,
+        vote_record: &Pubkey,
+        candidate_id: u8,
         poll_id: u64,
     ) -> Instruction {
         let mut data = get_discriminator(ix_name).to_vec();
@@ -173,6 +179,8 @@ mod tests {
                 AccountMeta::new(*signer, true),
                 AccountMeta::new(*poll, false),
                 AccountMeta::new(*candidate, false),
+                AccountMeta::new(*vote_record, false),
+                AccountMeta::new_readonly(system_program::ID, false),
             ],
             data,
         }
@@ -230,11 +238,10 @@ mod tests {
         let name2 = "Candidate 2";
         let id2 = 1;
 
-        let (c1_pda, _) = get_candidate_pda(poll_id, id1);
-        let (c2_pda, _) = get_candidate_pda(poll_id, id2);
+        let (c1_pda, _) = get_candidate_pda(poll_pda, id1);
+        let (c2_pda, _) = get_candidate_pda(poll_pda, id2);
 
         ctx.send_ix(create_candidate_ix(
-            "initialize_candidate",
             &ctx.user.pubkey(),
             &poll_pda,
             &c1_pda,
@@ -244,7 +251,6 @@ mod tests {
         ));
 
         ctx.send_ix(create_candidate_ix(
-            "initialize_candidate",
             &ctx.user.pubkey(),
             &poll_pda,
             &c2_pda,
@@ -272,8 +278,8 @@ mod tests {
         let name2 = "Candidate 2";
         let id2 = 1;
 
-        let (c1_pda, _) = get_candidate_pda(poll_id, id1);
-        let (c2_pda, _) = get_candidate_pda(poll_id, id2);
+        let (c1_pda, _) = get_candidate_pda(poll_pda, id1);
+        let (c2_pda, _) = get_candidate_pda(poll_pda, id2);
 
         ctx.send_ix(create_poll_ix(
             &ctx.user.pubkey(),
@@ -285,10 +291,9 @@ mod tests {
         ));
 
         for (name, id) in [(name1, id1), (name2, id2)] {
-            let (pda, _) = get_candidate_pda(poll_id, id);
+            let (pda, _) = get_candidate_pda(poll_pda, id);
 
             ctx.send_ix(create_candidate_ix(
-                "initialize_candidate",
                 &ctx.user.pubkey(),
                 &poll_pda,
                 &pda,
@@ -297,29 +302,25 @@ mod tests {
                 name,
             ));
         }
-        ctx.send_ix(start_poll_ix(
-            "start_poll",
+        ctx.send_ix(start_poll_ix(&ctx.user.pubkey(), &poll_pda, poll_id));
+
+        let (pda, _) = get_candidate_pda(poll_pda, id1);
+        let (vote_record_pda, _) = get_vote_record_pda(poll_pda, ctx.user.pubkey());
+
+        ctx.send_ix(vote_ix(
+            "vote_candidate",
             &ctx.user.pubkey(),
             &poll_pda,
+            &pda,
+            &vote_record_pda,
+            id1,
             poll_id,
         ));
-        for (name, id) in [(name1, id1), (name2, id2)] {
-            let (pda, _) = get_candidate_pda(poll_id, id);
-
-            ctx.send_ix(vote_ix(
-                "vote_candidate",
-                &ctx.user.pubkey(),
-                &poll_pda,
-                &pda,
-                id,
-                poll_id,
-            ));
-        }
 
         let c1: Candidate = ctx.get_account(&c1_pda);
         let c2: Candidate = ctx.get_account(&c2_pda);
 
         assert_eq!(c1.candidate_votes, 1);
-        assert_eq!(c2.candidate_votes, 1);
+        assert_eq!(c2.candidate_votes, 0);
     }
 }
