@@ -1,17 +1,3 @@
-# Anchor voting Program
-
-This template includes a simple SOL voting program built with [Anchor](https://www.anchor-lang.com/).
-
-## Pre-deployed Program
-
-The voting program is deployed on **devnet** at:
-
-```
-F4jZpgbtTb6RWNWq6v35fUeiAsRJMrDczVPv9U23yXjB
-```
-
-You can interact with it immediately by connecting your wallet to devnet.
-
 ## Deploying Your Own Program
 
 To deploy your own version of the program:
@@ -60,12 +46,16 @@ This updates the generated client code in `app/generated/voting/` with your new 
 
 ## Program Overview
 
-The voting program allows users to:
+The voting program supports a full poll lifecycle:
 
-- **Deposit**: Send SOL to a personal voting PDA (Program Derived Address)
-- **Withdraw**: Retrieve all SOL from your voting
+- **Initialize poll**: Create a poll account with a title, description, duration, and draft state.
+- **Add candidates**: Initialize candidate PDAs under the poll while it is still in draft.
+- **Start poll**: Open voting once at least two candidates exist.
+- **Vote**: Cast one vote per wallet for a candidate and record it with a voter-specific PDA.
+- **End poll**: Optionally shorten the poll duration before the scheduled end time.
+- **Close candidate / poll**: Close candidate accounts after voting ends and then close the poll account.
 
-Each user gets their own voting derived from their wallet address.
+The app uses program-derived addresses for `poll`, `candidate`, and `vote` records to track state on-chain.
 
 ## Testing
 

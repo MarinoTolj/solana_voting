@@ -1,12 +1,6 @@
-# voting
-
-Next.js starter with Tailwind CSS, `@solana/kit`, and an Anchor voting program example.
+# Voting
 
 ## Getting Started
-
-```shell
-npx -y create-solana-dapp@latest -t solana-foundation/templates/kit/voting
-```
 
 ```shell
 npm install
@@ -37,38 +31,6 @@ Open [http://localhost:3000](http://localhost:3000), connect your wallet, and in
 | Program Client | Codama-generated, `@solana/kit`  |
 | Program        | Anchor (Rust)                    |
 
-## Project Structure
-
-```
-├── app/
-│   ├── components/
-│   │   ├── cluster-context.tsx  # Cluster state (React context + localStorage)
-│   │   ├── cluster-select.tsx   # Cluster switcher dropdown
-│   │   ├── grid-background.tsx  # Solana-branded decorative grid
-│   │   ├── providers.tsx        # Wallet + theme providers
-│   │   ├── theme-toggle.tsx     # Light/dark mode toggle
-│   │   ├── voting-card.tsx       # voting deposit/withdraw UI
-│   │   └── wallet-button.tsx    # Wallet connect/disconnect dropdown
-│   ├── generated/voting/        # Codama-generated program client
-│   ├── lib/
-│   │   ├── wallet/             # Wallet-standard connection layer
-│   │   │   ├── types.ts        # Wallet types
-│   │   │   ├── standard.ts     # Wallet discovery + session creation
-│   │   │   ├── signer.ts       # WalletSession → TransactionSigner
-│   │   │   └── context.tsx     # WalletProvider + useWallet() hook
-│   │   ├── hooks/
-│   │   │   ├── use-balance.ts  # SWR-based balance fetching
-│   │   │   └── use-send-transaction.ts  # Transaction send with loading state
-│   │   ├── cluster.ts          # Cluster endpoints + RPC factory
-│   │   ├── lamports.ts         # SOL/lamports conversion
-│   │   ├── send-transaction.ts # Transaction build + sign + send pipeline
-│   │   ├── errors.ts           # Transaction error parsing
-│   │   └── explorer.ts         # Explorer URL builder + address helpers
-│   └── page.tsx                # Main page
-├── anchor/                     # Anchor workspace
-│   └── programs/voting/         # voting program (Rust)
-└── codama.json                 # Codama client generation config
-```
 
 ## Local Development
 
