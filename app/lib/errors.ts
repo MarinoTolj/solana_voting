@@ -24,7 +24,7 @@ export function parseTransactionError(err: unknown): string {
       return "Transaction approval was denied.";
     }
 
-    if (cause.context.code in votingErrorMessages!) {
+    if ("code" in cause.context && cause.context.code in votingErrorMessages!) {
       return getVotingErrorMessage(cause.context.code as VotingError);
     }
 
@@ -35,7 +35,9 @@ export function parseTransactionError(err: unknown): string {
 }
 
 function fromSolanaError(err: SolanaError): string {
-  if (err.cause?.context.code === 2001)
+  const cause = err.cause as { context?: { code?: number } } | undefined;
+
+  if (cause?.context?.code === 2001)
     return "Invalid account tried to sign the transaction.";
 
   return err.message;
