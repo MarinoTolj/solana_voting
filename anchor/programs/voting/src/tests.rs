@@ -13,11 +13,13 @@ mod tests {
         instruction::{AccountMeta, Instruction},
         pubkey::Pubkey,
         signature::Keypair,
-        signer::Signer,
+        signer::{EncodableKeypair, Signer},
         transaction::Transaction,
     };
 
     const LAMPORTS_PER_SOL: u64 = 1_000_000_000;
+    static PROGRAM_PUBKEY: Pubkey = Pubkey::new_from_array(PROGRAM_ID.to_bytes());
+    static SYSTEM_PUBKEY: Pubkey = Pubkey::new_from_array(system_program::ID.to_bytes());
 
     struct TestContext {
         svm: LiteSVM,
@@ -29,7 +31,9 @@ mod tests {
             let mut svm = LiteSVM::new();
 
             let program_bytes = include_bytes!("../../../target/deploy/voting.so");
-            svm.add_program(PROGRAM_ID, program_bytes);
+            // Convert PROGRAM_ID (from solana_program) to solana_sdk::pubkey::Pubkey
+
+            svm.add_program(PROGRAM_PUBKEY, program_bytes);
 
             let user = Keypair::new();
             svm.airdrop(&user.pubkey(), 10 * LAMPORTS_PER_SOL).unwrap();
@@ -58,25 +62,22 @@ mod tests {
     }
 
     fn get_poll_pda(poll_id: u64) -> (Pubkey, u8) {
-        Pubkey::find_program_address(&[b"poll", &poll_id.to_le_bytes()], &PROGRAM_ID)
+        Pubkey::find_program_address(&[b"poll", &poll_id.to_le_bytes()], &PROGRAM_PUBKEY)
     }
 
     fn get_candidate_pda(poll: Pubkey, candidate_id: u8) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
                 b"candidate",
-                poll.key().as_ref(),
+                poll.as_ref(),
                 candidate_id.to_le_bytes().as_ref(),
             ],
-            &PROGRAM_ID,
+            &PROGRAM_PUBKEY,
         )
     }
 
     fn get_vote_record_pda(poll: Pubkey, signer: Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[b"vote", poll.key().as_ref(), signer.key().as_ref()],
-            &PROGRAM_ID,
-        )
+        Pubkey::find_program_address(&[b"vote", poll.as_ref(), signer.as_ref()], &PROGRAM_PUBKEY)
     }
 
     fn get_discriminator(name: &str) -> [u8; 8] {
@@ -109,11 +110,11 @@ mod tests {
         write_string(&mut data, description);
 
         Instruction {
-            program_id: PROGRAM_ID,
+            program_id: PROGRAM_PUBKEY,
             accounts: vec![
                 AccountMeta::new(*signer, true),
                 AccountMeta::new(*poll, false),
-                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(SYSTEM_PUBKEY, false),
             ],
             data,
         }
@@ -134,12 +135,12 @@ mod tests {
         write_string(&mut data, name);
 
         Instruction {
-            program_id: PROGRAM_ID,
+            program_id: PROGRAM_PUBKEY,
             accounts: vec![
                 AccountMeta::new(*signer, true),
                 AccountMeta::new(*poll, false),
                 AccountMeta::new(*candidate, false),
-                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(SYSTEM_PUBKEY, false),
             ],
             data,
         }
@@ -150,7 +151,7 @@ mod tests {
         data.extend_from_slice(&poll_id.to_le_bytes());
 
         Instruction {
-            program_id: PROGRAM_ID,
+            program_id: PROGRAM_PUBKEY,
             accounts: vec![
                 AccountMeta::new(*signer, true),
                 AccountMeta::new(*poll, false),
@@ -174,13 +175,13 @@ mod tests {
         data.extend_from_slice(&poll_id.to_le_bytes());
 
         Instruction {
-            program_id: PROGRAM_ID,
+            program_id: PROGRAM_PUBKEY,
             accounts: vec![
                 AccountMeta::new(*signer, true),
                 AccountMeta::new(*poll, false),
                 AccountMeta::new(*candidate, false),
                 AccountMeta::new(*vote_record, false),
-                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(SYSTEM_PUBKEY, false),
             ],
             data,
         }
@@ -194,7 +195,7 @@ mod tests {
         let (poll_pda, _) = get_poll_pda(poll_id);
 
         let expected = Poll {
-            authority: ctx.user.pubkey(),
+            authority: anchor_lang::prelude::Pubkey::new_from_array(ctx.user.pubkey().to_bytes()),
             poll_id,
             name: "Test name".into(),
             description: "Test desc".into(),
