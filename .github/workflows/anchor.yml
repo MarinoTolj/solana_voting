@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -15,14 +18,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Cache cargo + target
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      # Cache Solana install
+      - name: Cache Solana
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/solana
+          key: solana-1.18.18
+
+      # Cache AVM + Anchor
+      - name: Cache Anchor
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.avm
+            ~/.cargo/bin/anchor
+          key: anchor-1.0.2
+
       - name: Install Solana CLI
         run: |
-          sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          if ! command -v solana &> /dev/null; then
+            sh -c "$(curl -sSfL https://release.solana.com/v1.18.18/install)"
+            echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          fi
 
-      - name: Install Anchor 1.0.2
+      - name: Install AVM + Anchor
         run: |
-          cargo install --git https://github.com/solana-foundation/anchor avm --locked --force
+          if ! command -v avm &> /dev/null; then
+            cargo install --git https://github.com/solana-foundation/anchor avm --locked --force
+          fi
+
           avm install 1.0.2
           avm use 1.0.2
 
@@ -30,4 +59,4 @@ jobs:
         run: anchor build
 
       - name: Test
-        run: cargo test
+        run: anchor test
